@@ -1,27 +1,22 @@
 const axios = require("axios");
 
 const getTikTokVideo = async (videoUrl) => {
-  const options = {
-    method: "GET",
-    url: "https://tiktok-video-downloader-api.p.rapidapi.com/media",
-    params: { videoUrl },
-    headers: {
-      "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-      "x-rapidapi-host": "tiktok-video-downloader-api.p.rapidapi.com",
-    },
-  };
-
   try {
-    const response = await axios.request(options);
-    const { downloadUrl, description } = response.data;
+    const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(
+      videoUrl
+    )}`;
+    const { data } = await axios.get(apiUrl);
 
-    if (!downloadUrl) {
-      throw new Error("No downloadable video URL found");
+    if (!data || !data.data || !data.data.play) {
+      throw new Error("Failed to get downloadable video link");
     }
+
+    const downloadUrl = data.data.play;
+    const description = data.data.title;
 
     return { downloadUrl, description };
   } catch (error) {
-    console.error("❌ Error fetching TikTok video:", error.message);
+    console.error("❌ Error fetching TikTok download info:", error.message);
     throw error;
   }
 };
