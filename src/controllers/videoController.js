@@ -1,9 +1,9 @@
-import { getTikTokVideo } from "../services/tiktokService.js";
-import { uploadToGCS } from "../services/gcsService.js";
-import { analyzeVideo } from "../services/videoAIService.js";
-import { generateAISummary } from "../services/aiSummaryService.js";
+const { getTikTokVideo } = require("../services/tiktokService.js");
+const { uploadToGCS } = require("../services/gcsService.js");
+const { analyzeVideo } = require("../services/videoAIService.js");
+const { generateAISummary } = require("../services/aiSummaryService.js");
 
-export const analyzeTikTok = async (req, res) => {
+const analyzeTikTok = async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "TikTok URL required" });
@@ -14,14 +14,14 @@ export const analyzeTikTok = async (req, res) => {
     const filename = `tiktok_${Date.now()}.mp4`;
 
     console.log("⬇️ Downloading & uploading video to GCS...");
-    const gcsUri = await uploadToGCS(downloadUrl, filename); // ✅ now passes URL directly
+    const gcsUri = await uploadToGCS(downloadUrl, filename);
 
     console.log("🧠 Analyzing video content...");
     const { labels, texts } = await analyzeVideo(gcsUri);
 
     console.log("✨ Generating AI summary...");
     const summary = await generateAISummary(labels, texts, caption);
-    console.log("✨ Done creating AI summary...");
+    console.log("✅ Done creating AI summary...");
 
     return res.json({ success: true, data: summary });
   } catch (err) {
@@ -29,3 +29,5 @@ export const analyzeTikTok = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+module.exports = { analyzeTikTok };

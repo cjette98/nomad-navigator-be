@@ -1,12 +1,13 @@
-import { storage } from "../config/googleClient.js";
-import axios from "axios";
+const { storage } = require("../config/googleClient");
+const axios = require("axios");
 
-export const uploadToGCS = async (downloadUrl, filename) => {
-  console.log("Download url -->", downloadUrl);
+const uploadToGCS = async (downloadUrl, filename) => {
+  console.log("Download URL -->", downloadUrl);
+
   const bucket = storage.bucket(process.env.GCS_BUCKET);
   const file = bucket.file(filename);
 
-  // Helper to format time
+  // Helper to format duration
   const formatDuration = (ms) => {
     const minutes = Math.floor(ms / 60000);
     const seconds = ((ms % 60000) / 1000).toFixed(1);
@@ -60,10 +61,9 @@ export const uploadToGCS = async (downloadUrl, filename) => {
       });
   });
 
-  // === CLEANUP ===
+  // === CLEANUP (no local temp files) ===
   console.log("🧹 Cleaning up temporary data (stream-based, no local file)...");
   const cleanupStart = Date.now();
-  // nothing to delete (no temp file), but still log consistency
   const cleanupDuration = Date.now() - cleanupStart;
   console.log(`🧼 Cleanup done in ${formatDuration(cleanupDuration)}`);
 
@@ -73,3 +73,5 @@ export const uploadToGCS = async (downloadUrl, filename) => {
 
   return `gs://${process.env.GCS_BUCKET}/${filename}`;
 };
+
+module.exports = { uploadToGCS };
