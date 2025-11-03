@@ -4,7 +4,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const generateAISummary = async (labels, texts, caption) => {
+const generateAISummary = async (labels, texts, description) => {
   const prompt = `
 You are analyzing a TikTok video about travel, food, or lifestyle.
 
@@ -13,7 +13,7 @@ Use the provided data to infer what the video is about. There can be multiple su
 Visual Analysis:
 - Labels: ${labels.join(", ") || "none"}
 - Detected Text: ${texts.join(", ") || "none"}
-- Video Caption: ${caption || "none"}
+- Video Caption: ${description || "none"}
 
 Now, generate a structured JSON array. Each element in the array represents one distinct subject, place, or item found in the video, in this format:
 [
@@ -38,10 +38,18 @@ Rules:
   });
 
   try {
-    const content = response.choices[0].message.content.trim();
+    let content = response.choices[0].message.content.trim();
+
+    // 🧹 Remove Markdown formatting if present
+    content = content
+      .replace(/```json\s*/g, "")
+      .replace(/```/g, "")
+      .trim();
+
     return JSON.parse(content);
   } catch (err) {
     console.error("❌ JSON parsing failed:", err);
+    console.log("Raw content:", response.choices[0].message.content);
     return [];
   }
 };

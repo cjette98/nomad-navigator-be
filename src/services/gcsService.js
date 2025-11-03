@@ -7,7 +7,6 @@ const uploadToGCS = async (downloadUrl, filename) => {
   const bucket = storage.bucket(process.env.GCS_BUCKET);
   const file = bucket.file(filename);
 
-  // Helper to format duration
   const formatDuration = (ms) => {
     const minutes = Math.floor(ms / 60000);
     const seconds = ((ms % 60000) / 1000).toFixed(1);
@@ -17,7 +16,6 @@ const uploadToGCS = async (downloadUrl, filename) => {
   console.log("⬇️ Downloading & uploading video to GCS...");
   const totalStart = Date.now();
 
-  // === DOWNLOAD + UPLOAD (STREAMED) ===
   const downloadStart = Date.now();
   console.log("⬇️ Downloading TikTok video...");
 
@@ -38,7 +36,7 @@ const uploadToGCS = async (downloadUrl, filename) => {
   await new Promise((resolve, reject) => {
     const gcsStream = file.createWriteStream({
       resumable: true,
-      gzip: true,
+      gzip: false, // ✅ don't compress binary files
       metadata: { contentType: "video/mp4" },
     });
 
@@ -61,13 +59,6 @@ const uploadToGCS = async (downloadUrl, filename) => {
       });
   });
 
-  // === CLEANUP (no local temp files) ===
-  console.log("🧹 Cleaning up temporary data (stream-based, no local file)...");
-  const cleanupStart = Date.now();
-  const cleanupDuration = Date.now() - cleanupStart;
-  console.log(`🧼 Cleanup done in ${formatDuration(cleanupDuration)}`);
-
-  // === TOTAL ===
   const totalDuration = Date.now() - totalStart;
   console.log(`⏱️ Total process time: ${formatDuration(totalDuration)}`);
 

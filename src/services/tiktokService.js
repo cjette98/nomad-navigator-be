@@ -13,13 +13,13 @@ const getTikTokVideo = async (videoUrl) => {
 
   try {
     const response = await axios.request(options);
-    const { downloadUrl, caption } = response.data;
+    const { downloadUrl, description } = response.data;
 
     if (!downloadUrl) {
       throw new Error("No downloadable video URL found");
     }
 
-    return { downloadUrl, caption };
+    return { downloadUrl, description };
   } catch (error) {
     console.error("❌ Error fetching TikTok video:", error.message);
     throw error;

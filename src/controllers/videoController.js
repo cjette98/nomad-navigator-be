@@ -9,18 +9,20 @@ const analyzeTikTok = async (req, res) => {
     if (!url) return res.status(400).json({ error: "TikTok URL required" });
 
     console.log("🎥 Fetching TikTok video info...");
-    const { downloadUrl, caption } = await getTikTokVideo(url);
+    const { downloadUrl, description } = await getTikTokVideo(url);
 
     const filename = `tiktok_${Date.now()}.mp4`;
 
     console.log("⬇️ Downloading & uploading video to GCS...");
     const gcsUri = await uploadToGCS(downloadUrl, filename);
+    // const gcsUri = "gs://nomad-navigator-bucker/tiktok_1762158146471.mp4";
 
     console.log("🧠 Analyzing video content...");
+    console.log("gcsUri", gcsUri);
     const { labels, texts } = await analyzeVideo(gcsUri);
 
     console.log("✨ Generating AI summary...");
-    const summary = await generateAISummary(labels, texts, caption);
+    const summary = await generateAISummary(labels, texts, description);
     console.log("✅ Done creating AI summary...");
 
     return res.json({ success: true, data: summary });
