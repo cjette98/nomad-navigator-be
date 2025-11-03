@@ -25,7 +25,7 @@ Now, generate a structured JSON array. Each element in the array represents one 
 ]
 
 Rules:
-- Include up to 3 relevant items max.
+- Include up to 5 relevant items max.
 - Titles must sound like real-world places, events, or subjects.
 - Descriptions must be concise but informative.
 - Categories must be one of the six listed.
