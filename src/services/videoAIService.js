@@ -1,21 +1,5 @@
 const { videoClient } = require("../config/googleClient.js");
 
-const { storage } = require("../config/googleClient.js");
-
-async function testFileAccess() {
-  try {
-    await storage
-      .bucket("nomad-navigator-bucker")
-      .file("tiktok_1762158146471.mp4")
-      .getMetadata();
-    console.log("✅ Service account can access the file");
-  } catch (err) {
-    console.error("❌ Access error:", err.message);
-  }
-}
-
-testFileAccess();
-
 const analyzeVideo = async (gcsUri) => {
   const request = {
     inputUri: gcsUri,
