@@ -4,15 +4,16 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const generateAISummary = async (labels, texts, description) => {
-  const prompt = `
-You are analyzing a TikTok video about travel, food, or lifestyle.
+const generateAISummary = async (labels, texts,transcript, description) => {
+  const allTranscript = transcript.join(" ");
+  const prompt = `You are analyzing a TikTok video about travel, food, or lifestyle.
 
 Use the provided data to infer what the video is about. There can be multiple subjects, places, or items mentioned in the labels, detected text, or caption.
 
-Visual Analysis:
-- Labels: ${labels.join(", ") || "none"}
-- Detected Text: ${texts.join(", ") || "none"}
+Visual and Audio Analysis Data:
+- Labels (Objects/Scenes): ${labels.join(", ") || "none"}
+- Detected Text (OCR): ${texts.join(", ") || "none"}
+- Speech Transcript: ${allTranscript || "none"} 👈 New data source
 - Video Caption: ${description || "none"}
 
 Now, generate a structured JSON array. Each element in the array represents one distinct subject, place, or item found in the video, in this format:
@@ -29,7 +30,7 @@ Rules:
 - Titles must sound like real-world places, events, or subjects.
 - Descriptions must be concise but informative.
 - Categories must be one of the six listed.
-- Output only valid JSON array, no extra text or explanations.
+- **VERY IMPORTANT: Output ONLY the valid JSON array, without any leading/trailing text, explanations, or JSON markdown (e.g., \`\`\`json).**
 `;
 
   const response = await openai.chat.completions.create({
