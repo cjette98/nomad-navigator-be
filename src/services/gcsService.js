@@ -1,6 +1,11 @@
 const { storage } = require("../config/googleClient");
 const axios = require("axios");
 
+const deleteFromGCS = async (filename) => {
+  const bucket = storage.bucket(process.env.GCS_BUCKET);
+  await bucket.file(filename).delete();
+};
+
 const uploadToGCS = async (downloadUrl, filename) => {
   console.log("Download URL -->", downloadUrl);
 
@@ -65,4 +70,4 @@ const uploadToGCS = async (downloadUrl, filename) => {
   return `gs://${process.env.GCS_BUCKET}/${filename}`;
 };
 
-module.exports = { uploadToGCS };
+module.exports = { uploadToGCS, deleteFromGCS };
