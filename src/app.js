@@ -50,7 +50,7 @@ async function loadClerkAndStartServer() {
         
         app.use(clerkMiddleware()) 
         app.use("/api",protectEndpoint, videoRoutes);
-        app.use("/api/travel-preferences", protectEndpoint, travelPreferenceRoutes);
+        app.use("/api", protectEndpoint, travelPreferenceRoutes);
 
     } catch (error) {
         console.error("Failed to load Clerk module:", error);

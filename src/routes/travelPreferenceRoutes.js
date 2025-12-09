@@ -8,13 +8,13 @@ const {
 const router = express.Router();
 
 // Save or update travel preferences
-router.post("/", savePreferences);
+router.post("/travel-preferences", savePreferences);
 
 // Get travel preferences
-router.get("/", getPreferences);
+router.get("/travel-preferences", getPreferences);
 
 // Delete travel preferences
-router.delete("/", deletePreferences);
+router.delete("/travel-preferences", deletePreferences);
 
 module.exports = router;
 
