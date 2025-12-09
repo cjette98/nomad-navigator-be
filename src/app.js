@@ -4,12 +4,20 @@ var cors = require("cors");
 const { google } = require("googleapis");
 const OpenAI = require("openai");
 const videoRoutes = require("./routes/videoRoutes");
+const travelPreferenceRoutes = require("./routes/travelPreferenceRoutes");
+const { initializeFirebase } = require("./config/database");
 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 let getAuth;
+
+
+// Initialize Firebase
+initializeFirebase();
+app.use(cors());
+app.use(express.json());
 
 const protectEndpoint = (req, res, next) => {
     if (!getAuth) {
@@ -42,14 +50,15 @@ async function loadClerkAndStartServer() {
         
         app.use(clerkMiddleware()) 
         app.use("/api",protectEndpoint, videoRoutes);
+        app.use("/api", protectEndpoint, travelPreferenceRoutes);
 
     } catch (error) {
         console.error("Failed to load Clerk module:", error);
     }
 }
 loadClerkAndStartServer()
-app.use(cors());
-app.use(express.json());
+
+
 
 // -------------------------
 // 📧 GMAIL + AI EXTRACTION
