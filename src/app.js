@@ -5,12 +5,51 @@ const { google } = require("googleapis");
 const OpenAI = require("openai");
 const videoRoutes = require("./routes/videoRoutes");
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+let getAuth;
+
+const protectEndpoint = (req, res, next) => {
+    if (!getAuth) {
+        console.error("Clerk getAuth utility not loaded yet!");
+        return res.status(503).send('Service Unavailable: Server still initializing.');
+    }
+    try {
+        const auth = getAuth(req); 
+
+        if (!auth.userId) {
+            return res.status(401).send('Unauthorized: Invalid or missing session.');
+        }
+        req.userId = auth.userId; 
+        console.log(auth.userId)
+
+        next();
+
+    } catch (error) {
+        console.error('Error verifying Clerk session:', error);
+        return res.status(401).send('Unauthorized: Session verification failed.');
+    }
+};
+
+async function loadClerkAndStartServer() {
+    try {
+        const clerkModule = await import('@clerk/express');
+        
+        const { clerkMiddleware, getAuth: importedGetAuth } = clerkModule;
+        getAuth = importedGetAuth
+        
+        app.use(clerkMiddleware()) 
+        app.use("/api",protectEndpoint, videoRoutes);
+
+    } catch (error) {
+        console.error("Failed to load Clerk module:", error);
+    }
+}
+loadClerkAndStartServer()
 app.use(cors());
 app.use(express.json());
-app.use("/api", videoRoutes);
 
 // -------------------------
 // 📧 GMAIL + AI EXTRACTION
