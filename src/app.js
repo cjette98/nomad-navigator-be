@@ -2,8 +2,10 @@ require("dotenv").config();
 const express = require("express");
 var cors = require("cors");
 const { google } = require("googleapis");
+const rateLimit = require("./middleware/rateLimit");
 const OpenAI = require("openai");
 const videoRoutes = require("./routes/videoRoutes");
+const linkRoutes = require("./routes/linkRoutes");
 const travelPreferenceRoutes = require("./routes/travelPreferenceRoutes");
 const tripSuggestionRoutes = require("./routes/tripSuggestionRoutes");
 const tripRoutes = require("./routes/tripRoutes");
@@ -20,6 +22,7 @@ let getAuth;
 initializeFirebase();
 app.use(cors());
 app.use(express.json());
+app.use(rateLimit());
 
 const protectEndpoint = (req, res, next) => {
     if (!getAuth) {
@@ -52,6 +55,7 @@ async function loadClerkAndStartServer() {
         
         app.use(clerkMiddleware()) 
         app.use("/api",protectEndpoint, videoRoutes);
+        app.use("/api",protectEndpoint, linkRoutes);
         app.use("/api", protectEndpoint, travelPreferenceRoutes);
         app.use("/api", protectEndpoint, tripSuggestionRoutes);
         app.use("/api", protectEndpoint, tripRoutes);
