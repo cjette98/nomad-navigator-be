@@ -6,6 +6,7 @@ const OpenAI = require("openai");
 const videoRoutes = require("./routes/videoRoutes");
 const travelPreferenceRoutes = require("./routes/travelPreferenceRoutes");
 const tripSuggestionRoutes = require("./routes/tripSuggestionRoutes");
+const tripRoutes = require("./routes/tripRoutes");
 const { initializeFirebase } = require("./config/database");
 
 
@@ -53,6 +54,7 @@ async function loadClerkAndStartServer() {
         app.use("/api",protectEndpoint, videoRoutes);
         app.use("/api", protectEndpoint, travelPreferenceRoutes);
         app.use("/api", protectEndpoint, tripSuggestionRoutes);
+        app.use("/api", protectEndpoint, tripRoutes);
 
     } catch (error) {
         console.error("Failed to load Clerk module:", error);
