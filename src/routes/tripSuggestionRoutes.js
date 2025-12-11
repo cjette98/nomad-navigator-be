@@ -1,9 +1,9 @@
 const express = require("express");
-const { getTripSuggestions } = require("../controllers/tripSuggestionController");
+const { createTripSuggestions } = require("../controllers/tripSuggestionController");
 
 const router = express.Router();
 
-// Generate trip suggestions
-router.get("/trip-suggestions", getTripSuggestions);
+// Generate trip suggestions - Start with AI 
+router.post("/trip-suggestions", createTripSuggestions);
 
 module.exports = router;

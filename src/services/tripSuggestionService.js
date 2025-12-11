@@ -6,74 +6,78 @@ const openai = new OpenAI({
 });
 
 /**
- * Generate three trip suggestions with different vibes based on user's travel preferences
+ * Generate trip suggestions tailored to the request form + saved preferences.
+ * Each suggestion follows a consistent shape for the UI.
  * @param {string} userId - The user ID from Clerk
- * @returns {Promise<object>} - Object containing three trip suggestions (adventure, relaxing, cultural)
+ * @param {object} requestDetails - Trip request form fields
+ * @returns {Promise<object>} - Object containing trip suggestions
  */
-const generateTripSuggestions = async (userId) => {
+const generateTripSuggestions = async (userId, requestDetails = {}) => {
   try {
-    // Get user's travel preferences
+    // Get user's travel preferences (optional context)
     const preferences = await getTravelPreferences(userId);
+    const preferencesText = preferences ? JSON.stringify(preferences, null, 2) : "None saved";
 
-    if (!preferences) {
-      throw new Error("Travel preferences not found. Please save your preferences first.");
-    }
+    const requestText = JSON.stringify(requestDetails, null, 2);
 
-    // Build a descriptive prompt based on preferences
-    const preferencesText = JSON.stringify(preferences, null, 2);
+    const prompt = `You are a travel planning expert. Use the user's saved travel preferences (if any) AND the trip request form fields to tailor exactly 3 trip suggestions with different vibes.
 
-    const prompt = `You are a travel planning expert. Based on the following user travel preferences, generate exactly 3 trip suggestions with different "vibes":
-
-User Travel Preferences:
+Saved Travel Preferences (may be "None saved"):
 ${preferencesText}
 
-Generate three distinct trip suggestions, each with a different vibe:
-1. **Adventure** - Active, thrilling, outdoor activities, exploration
-2. **Relaxing** - Peaceful, rejuvenating, spa-like, low-key
-3. **Cultural** - Historical sites, local traditions, museums, authentic experiences
+Trip Request Form Fields (all user-provided; prefer these over defaults):
+${requestText}
+
+Generate three distinct trip suggestions, each with a different vibe/theme (adventure, relaxing, cultural or other appropriate theme). Ensure variety.
+
+Rules:
+- Honor the requested destination or vibe. If both are vague, pick fitting options.
+- If startDate/endDate are provided, use them as start_date/end_date. If only durationDays is provided, propose dates that fit (start_date today+14 days by default). If none, propose a sensible 4-7 day window.
+- Incorporate mustHaves into highlights.
+- Match the tone to travelPace, travelers, and budget.
 
 For each trip suggestion, provide:
-- destination: The main destination (city, region, or country)
-- vibe: "adventure", "relaxing", or "cultural"
-- title: A catchy title for the trip (e.g., "Mountain Adventure in the Alps")
-- description: A 2-3 sentence description of what makes this trip special
-- highlights: An array of 3-5 key highlights/activities
-- duration: Suggested trip duration (e.g., "5-7 days")
-- bestTimeToVisit: When to visit (e.g., "May-September")
-- estimatedBudget: Budget range (e.g., "$1,500-$2,500" or "Moderate")
+- name: Catchy trip name
+- destination: Main destination (city/region/country)
+- start_date: ISO date string (YYYY-MM-DD)
+- end_date: ISO date string (YYYY-MM-DD) aligned with duration
+- description: 2-3 sentence overview
+- theme: Short theme label (e.g., "Nature and Wellness")
+- highlights: 3-5 concise highlight strings that reflect mustHaves, pace, travelers, budget
+- dateNotes: Brief note on how dates/duration were chosen
 
 Return ONLY a valid JSON object in this exact format (no markdown, no explanations):
 {
   "suggestions": [
     {
+      "name": "string",
       "destination": "string",
-      "vibe": "adventure",
-      "title": "string",
+      "start_date": "YYYY-MM-DD",
+      "end_date": "YYYY-MM-DD",
       "description": "string",
+      "theme": "string",
       "highlights": ["string", "string", "string"],
-      "duration": "string",
-      "bestTimeToVisit": "string",
-      "estimatedBudget": "string"
+      "dateNotes": "string"
     },
     {
+      "name": "string",
       "destination": "string",
-      "vibe": "relaxing",
-      "title": "string",
+      "start_date": "YYYY-MM-DD",
+      "end_date": "YYYY-MM-DD",
       "description": "string",
+      "theme": "string",
       "highlights": ["string", "string", "string"],
-      "duration": "string",
-      "bestTimeToVisit": "string",
-      "estimatedBudget": "string"
+      "dateNotes": "string"
     },
     {
+      "name": "string",
       "destination": "string",
-      "vibe": "cultural",
-      "title": "string",
+      "start_date": "YYYY-MM-DD",
+      "end_date": "YYYY-MM-DD",
       "description": "string",
+      "theme": "string",
       "highlights": ["string", "string", "string"],
-      "duration": "string",
-      "bestTimeToVisit": "string",
-      "estimatedBudget": "string"
+      "dateNotes": "string"
     }
   ]
 }`;
@@ -97,6 +101,21 @@ Return ONLY a valid JSON object in this exact format (no markdown, no explanatio
       if (!parsed.suggestions || !Array.isArray(parsed.suggestions) || parsed.suggestions.length !== 3) {
         throw new Error("Invalid response structure from AI");
       }
+
+      parsed.suggestions.forEach((s, idx) => {
+        if (
+          !s.name ||
+          !s.destination ||
+          !s.start_date ||
+          !s.end_date ||
+          !s.description ||
+          !s.theme ||
+          !Array.isArray(s.highlights) ||
+          s.highlights.length === 0
+        ) {
+          throw new Error(`Suggestion ${idx + 1} missing required fields`);
+        }
+      });
 
       return parsed;
     } catch (err) {

@@ -2,9 +2,9 @@ const { generateTripSuggestions } = require("../services/tripSuggestionService")
 
 /**
  * Generate trip suggestions for the current user
- * GET /api/trip-suggestions
+ * POST /api/trip-suggestions
  */
-const getTripSuggestions = async (req, res) => {
+const createTripSuggestions = async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -15,7 +15,36 @@ const getTripSuggestions = async (req, res) => {
       });
     }
 
-    const suggestions = await generateTripSuggestions(userId);
+    const {
+      destinationOrVibe,
+      mustHaves,
+      durationDays,
+      startDate,
+      endDate,
+      travelPace,
+      travelers,
+      budget,
+    } = req.body || {};
+
+    if (!destinationOrVibe) {
+      return res.status(400).json({
+        success: false,
+        message: "Destination or vibe is required",
+      });
+    }
+
+    const requestDetails = {
+      destinationOrVibe,
+      mustHaves,
+      durationDays,
+      startDate,
+      endDate,
+      travelPace,
+      travelers,
+      budget,
+    };
+
+    const suggestions = await generateTripSuggestions(userId, requestDetails);
 
     return res.status(200).json({
       success: true,
@@ -42,5 +71,5 @@ const getTripSuggestions = async (req, res) => {
 };
 
 module.exports = {
-  getTripSuggestions,
+  createTripSuggestions,
 };

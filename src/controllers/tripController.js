@@ -158,10 +158,10 @@ const updateActivities = async (req, res) => {
     }
 
     const dayNum = parseInt(dayNumber, 10);
-    if (isNaN(dayNum) || dayNum < 1 || dayNum > 3) {
+    if (isNaN(dayNum) || dayNum < 1) {
       return res.status(400).json({
         success: false,
-        message: "Day number must be 1, 2, or 3",
+        message: "Day number must be a positive integer",
       });
     }
 
@@ -229,10 +229,10 @@ const addActivities = async (req, res) => {
     }
 
     const dayNum = parseInt(dayNumber, 10);
-    if (isNaN(dayNum) || dayNum < 1 || dayNum > 3) {
+    if (isNaN(dayNum) || dayNum < 1) {
       return res.status(400).json({
         success: false,
-        message: "Day number must be 1, 2, or 3",
+        message: "Day number must be a positive integer",
       });
     }
 

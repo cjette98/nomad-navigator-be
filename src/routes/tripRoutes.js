@@ -25,3 +25,4 @@ router.put("/trips/:tripId/days/:dayNumber/activities", updateActivities);
 router.post("/trips/:tripId/days/:dayNumber/activities", addActivities);
 
 module.exports = router;
+
