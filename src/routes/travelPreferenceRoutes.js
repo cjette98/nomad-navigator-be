@@ -2,6 +2,7 @@ const express = require("express");
 const {
   savePreferences,
   getPreferences,
+  updatePreferences,
   deletePreferences,
 } = require("../controllers/travelPreferenceController");
 
@@ -11,8 +12,8 @@ const router = express.Router();
  * @swagger
  * /api/travel-preferences:
  *   post:
- *     summary: Save or update travel preferences
- *     description: Creates or updates travel preferences for the authenticated user. The preferences object is flexible and can contain any travel-related data.
+ *     summary: Create travel preferences
+ *     description: Creates new travel preferences for the authenticated user. If preferences already exist, they will be merged with existing data.
  *     tags: [Travel Preferences]
  *     security:
  *       - bearerAuth: []
@@ -128,15 +129,42 @@ router.get("/travel-preferences", getPreferences);
 /**
  * @swagger
  * /api/travel-preferences:
- *   delete:
- *     summary: Delete travel preferences
- *     description: Deletes all travel preferences for the authenticated user
+ *   put:
+ *     summary: Update travel preferences
+ *     description: Updates existing travel preferences for the authenticated user. Returns 404 if preferences don't exist (use POST to create).
  *     tags: [Travel Preferences]
  *     security:
  *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/TravelPreferencesRequest'
+ *           example:
+ *             whoIsGoing: "couple"
+ *             preferredTravelDocuments: ["passport"]
+ *             preferredFlightStyle: "economy"
+ *             preferredInDestinationTransport: ["public_transport", "taxi"]
+ *             travelFrequencyPerYear: "3-5"
+ *             travelerType: "budget"
+ *             preferredTripDuration: "1_week"
+ *             tripBudget:
+ *               currency: "USD"
+ *               min: 500
+ *               max: 2000
+ *             accommodationStyle: "budget_hotel"
+ *             loyaltyPrograms:
+ *               - programName: "Marriott Bonvoy"
+ *                 membershipNumber: "123456789"
+ *                 tier: "Gold"
+ *             interestsAndVibes: ["beaches", "culture"]
+ *             personalInfo:
+ *               country: "United States"
+ *               phoneNumber: "+1234567890"
  *     responses:
  *       200:
- *         description: Travel preferences deleted successfully
+ *         description: Travel preferences updated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -147,7 +175,18 @@ router.get("/travel-preferences", getPreferences);
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Travel preferences deleted successfully"
+ *                   example: "Travel preferences updated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/TravelPreferences'
+ *       400:
+ *         description: Bad request - missing or invalid preferences data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               success: false
+ *               message: "Travel preferences data is required"
  *       401:
  *         description: Unauthorized - missing or invalid authentication
  *         content:
@@ -155,14 +194,14 @@ router.get("/travel-preferences", getPreferences);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *       404:
- *         description: Travel preferences not found
+ *         description: Travel preferences not found - use POST to create new preferences
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *             example:
  *               success: false
- *               message: "Travel preferences not found"
+ *               message: "Travel preferences not found. Use POST to create new preferences."
  *       500:
  *         description: Internal server error
  *         content:
@@ -170,7 +209,7 @@ router.get("/travel-preferences", getPreferences);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/travel-preferences", deletePreferences);
+router.put("/travel-preferences", updatePreferences);
 
 module.exports = router;
 

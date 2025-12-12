@@ -86,6 +86,57 @@ const getPreferences = async (req, res) => {
 };
 
 /**
+ * Update travel preferences for the current user
+ * PUT /api/travel-preferences
+ */
+const updatePreferences = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    // Check if preferences exist
+    const existingPreferences = await getTravelPreferences(userId);
+    if (!existingPreferences) {
+      return res.status(404).json({
+        success: false,
+        message: "Travel preferences not found. Use POST to create new preferences.",
+      });
+    }
+
+    const preferences = req.body;
+
+    // Validate that preferences object is provided
+    if (!preferences || Object.keys(preferences).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Travel preferences data is required",
+      });
+    }
+
+    const updatedPreferences = await saveTravelPreferences(userId, preferences);
+
+    return res.status(200).json({
+      success: true,
+      message: "Travel preferences updated successfully",
+      data: updatedPreferences,
+    });
+  } catch (error) {
+    console.error("Error in updatePreferences controller:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update travel preferences",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Delete travel preferences for the current user
  * DELETE /api/travel-preferences
  */
@@ -126,6 +177,7 @@ const deletePreferences = async (req, res) => {
 module.exports = {
   savePreferences,
   getPreferences,
+  updatePreferences,
   deletePreferences,
 };
 

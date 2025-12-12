@@ -50,7 +50,7 @@ Now all API requests will include the authentication header automatically.
 ### Travel Preferences
 
 #### POST `/api/travel-preferences`
-Save or update travel preferences for the authenticated user.
+Create new travel preferences for the authenticated user. If preferences already exist, they will be merged with existing data.
 
 **Request Body Fields:**
 - `whoIsGoing` (string) - Travel companion type (e.g., "solo", "couple", "family")
@@ -108,6 +108,49 @@ Get travel preferences for the authenticated user.
 **Responses:**
 - `200` - Travel preferences retrieved successfully
 - `404` - Travel preferences not found
+
+#### PUT `/api/travel-preferences`
+Update existing travel preferences for the authenticated user. Returns 404 if preferences don't exist (use POST to create new preferences).
+
+**Request Body:**
+Same structure as POST endpoint. Only the fields provided will be updated (partial updates are supported).
+
+**Example Request:**
+```json
+{
+  "whoIsGoing": "couple",
+  "preferredTravelDocuments": ["passport"],
+  "preferredFlightStyle": "economy",
+  "preferredInDestinationTransport": ["public_transport", "taxi"],
+  "travelFrequencyPerYear": "3-5",
+  "travelerType": "budget",
+  "preferredTripDuration": "1_week",
+  "tripBudget": {
+    "currency": "USD",
+    "min": 500,
+    "max": 2000
+  },
+  "accommodationStyle": "budget_hotel",
+  "loyaltyPrograms": [
+    {
+      "programName": "Marriott Bonvoy",
+      "membershipNumber": "123456789",
+      "tier": "Gold"
+    }
+  ],
+  "interestsAndVibes": ["beaches", "culture"],
+  "personalInfo": {
+    "country": "United States",
+    "phoneNumber": "+1234567890"
+  }
+}
+```
+
+**Responses:**
+- `200` - Travel preferences updated successfully
+- `400` - Bad request - missing or invalid preferences data
+- `404` - Travel preferences not found (use POST to create)
+- `500` - Internal server error
 
 #### DELETE `/api/travel-preferences`
 Delete all travel preferences for the authenticated user.
