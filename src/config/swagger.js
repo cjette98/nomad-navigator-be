@@ -1,0 +1,564 @@
+const swaggerJsdoc = require('swagger-jsdoc');
+
+const options = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Nomad Navigator API',
+      version: '1.0.0',
+      description: 'API documentation for Aitinery',
+      contact: {
+        name: 'API Support',
+      },
+    },
+    servers: [
+      {
+        url: 'http://localhost:3000',
+        description: 'Development server',
+      },
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Clerk authentication token. Get this from your Clerk session.',
+        },
+      },
+      schemas: {
+        Error: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: false,
+            },
+            message: {
+              type: 'string',
+              example: 'Error message here',
+            },
+            error: {
+              type: 'string',
+              example: 'Detailed error message',
+            },
+          },
+        },
+        TripSuggestionRequest: {
+          type: 'object',
+          required: ['destinationOrVibe'],
+          properties: {
+            destinationOrVibe: {
+              type: 'string',
+              description: 'Destination name or travel vibe (e.g., "Lisbon, food + culture")',
+              example: 'Lisbon, food + culture',
+            },
+            mustHaves: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: 'List of must-have experiences or requirements',
+              example: ['great coffee', 'walkable areas', 'historic sites'],
+            },
+            durationDays: {
+              type: 'number',
+              description: 'Number of days for the trip',
+              example: 5,
+            },
+            startDate: {
+              type: 'string',
+              format: 'date',
+              description: 'Trip start date (YYYY-MM-DD)',
+              example: '2025-02-10',
+            },
+            endDate: {
+              type: 'string',
+              format: 'date',
+              description: 'Trip end date (YYYY-MM-DD)',
+              example: '2025-02-15',
+            },
+            travelPace: {
+              type: 'string',
+              enum: ['slow', 'moderate', 'fast'],
+              description: 'Preferred travel pace',
+              example: 'slow',
+            },
+            travelers: {
+              type: 'number',
+              description: 'Number of travelers',
+              example: 2,
+            },
+            budget: {
+              type: 'string',
+              enum: ['budget', 'mid', 'luxury'],
+              description: 'Budget level',
+              example: 'mid',
+            },
+          },
+        },
+        TripSuggestionResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            message: {
+              type: 'string',
+              example: 'Trip suggestions generated successfully',
+            },
+            data: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  destination: {
+                    type: 'string',
+                    example: 'Lisbon',
+                  },
+                  title: {
+                    type: 'string',
+                    example: 'Food + Culture long weekend',
+                  },
+                  description: {
+                    type: 'string',
+                    example: 'A perfect blend of Portuguese cuisine and historic charm',
+                  },
+                },
+              },
+            },
+          },
+        },
+        CreateTripRequest: {
+          type: 'object',
+          required: ['selectedTrip'],
+          properties: {
+            selectedTrip: {
+              type: 'object',
+              description: 'The selected trip suggestion data',
+              properties: {
+                destination: {
+                  type: 'string',
+                  example: 'Lisbon',
+                },
+                title: {
+                  type: 'string',
+                  example: 'Food + Culture long weekend',
+                },
+                startDate: {
+                  type: 'string',
+                  format: 'date',
+                  example: '2025-02-10',
+                },
+                endDate: {
+                  type: 'string',
+                  format: 'date',
+                  example: '2025-02-13',
+                },
+                durationDays: {
+                  type: 'number',
+                  example: 4,
+                },
+                travelers: {
+                  type: 'number',
+                  example: 2,
+                },
+                budget: {
+                  type: 'string',
+                  example: 'mid',
+                },
+                vibe: {
+                  type: 'array',
+                  items: {
+                    type: 'string',
+                  },
+                  example: ['food', 'history', 'walkable core'],
+                },
+              },
+            },
+          },
+        },
+        Activity: {
+          type: 'object',
+          required: ['name', 'time'],
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Activity name',
+              example: 'Arrival at Sorsogon Airport',
+            },
+            time: {
+              type: 'string',
+              description: 'Activity time',
+              example: '10:00 AM',
+            },
+            description: {
+              type: 'string',
+              description: 'Detailed description of the activity',
+              example: 'Arrive in Sorsogon and transfer to your accommodation.',
+            },
+            type: {
+              type: 'string',
+              description: 'Activity type (e.g., transport, meal, sightseeing)',
+              example: 'transport',
+            },
+            location: {
+              type: 'string',
+              description: 'Location of the activity',
+              example: 'Sorsogon Airport',
+            },
+          },
+        },
+        UpdateActivitiesRequest: {
+          type: 'object',
+          required: ['activities'],
+          properties: {
+            activities: {
+              type: 'array',
+              description: 'Array of activities to replace existing activities for the day',
+              items: {
+                $ref: '#/components/schemas/Activity',
+              },
+            },
+          },
+        },
+        AddActivitiesRequest: {
+          type: 'object',
+          required: ['activities'],
+          properties: {
+            activities: {
+              type: 'array',
+              description: 'Array of new activities to add to the day',
+              items: {
+                $ref: '#/components/schemas/Activity',
+              },
+            },
+          },
+        },
+        Trip: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              example: 'trip123',
+            },
+            userId: {
+              type: 'string',
+              example: 'user_abc123',
+            },
+            selectedTrip: {
+              type: 'object',
+            },
+            itinerary: {
+              type: 'object',
+              properties: {
+                day1: {
+                  type: 'object',
+                  properties: {
+                    activities: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/components/schemas/Activity',
+                      },
+                    },
+                  },
+                },
+                day2: {
+                  type: 'object',
+                  properties: {
+                    activities: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/components/schemas/Activity',
+                      },
+                    },
+                  },
+                },
+                day3: {
+                  type: 'object',
+                  properties: {
+                    activities: {
+                      type: 'array',
+                      items: {
+                        $ref: '#/components/schemas/Activity',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time',
+            },
+          },
+        },
+        TripResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            message: {
+              type: 'string',
+              example: 'Trip created successfully with itinerary',
+            },
+            data: {
+              $ref: '#/components/schemas/Trip',
+            },
+          },
+        },
+        TripsListResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            data: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/Trip',
+              },
+            },
+          },
+        },
+        TripBudget: {
+          type: 'object',
+          properties: {
+            currency: {
+              type: 'string',
+              description: 'Currency code (e.g., USD, EUR)',
+              example: 'USD',
+            },
+            min: {
+              type: 'number',
+              description: 'Minimum budget amount',
+              example: 1000,
+            },
+            max: {
+              type: 'number',
+              description: 'Maximum budget amount',
+              example: 5000,
+            },
+          },
+        },
+        LoyaltyProgram: {
+          type: 'object',
+          properties: {
+            programName: {
+              type: 'string',
+              description: 'Name of the loyalty program',
+              example: 'Marriott Bonvoy',
+            },
+            membershipNumber: {
+              type: 'string',
+              description: 'Membership number',
+              example: '123456789',
+            },
+            tier: {
+              type: 'string',
+              description: 'Membership tier level',
+              example: 'Gold',
+            },
+          },
+        },
+        PersonalInfo: {
+          type: 'object',
+          properties: {
+            country: {
+              type: 'string',
+              description: 'Country of residence',
+              example: 'United States',
+            },
+            phoneNumber: {
+              type: 'string',
+              description: 'Phone number with country code',
+              example: '+1234567890',
+            },
+          },
+        },
+        TravelPreferences: {
+          type: 'object',
+          description: 'User travel preferences',
+          properties: {
+            whoIsGoing: {
+              type: 'string',
+              description: 'Travel companion type',
+              example: 'solo',
+            },
+            preferredTravelDocuments: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: 'List of preferred travel documents',
+              example: ['passport', 'visa'],
+            },
+            preferredFlightStyle: {
+              type: 'string',
+              description: 'Preferred flight class/style',
+              example: 'business',
+            },
+            preferredInDestinationTransport: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: 'Preferred transportation methods at destination',
+              example: ['rental_car', 'public_transport', 'taxi'],
+            },
+            travelFrequencyPerYear: {
+              type: 'string',
+              description: 'Number of trips per year',
+              example: '6-10',
+            },
+            travelerType: {
+              type: 'string',
+              description: 'Type of traveler',
+              example: 'adventure',
+            },
+            preferredTripDuration: {
+              type: 'string',
+              description: 'Preferred trip duration',
+              example: '2_weeks',
+            },
+            tripBudget: {
+              $ref: '#/components/schemas/TripBudget',
+            },
+            accommodationStyle: {
+              type: 'string',
+              description: 'Preferred accommodation style',
+              example: 'luxury_hotel',
+            },
+            loyaltyPrograms: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/LoyaltyProgram',
+              },
+              description: 'List of loyalty program memberships',
+            },
+            interestsAndVibes: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              description: 'Travel interests and vibes',
+              example: ['beaches', 'mountains', 'nightlife', 'culture', 'adventure'],
+            },
+            personalInfo: {
+              $ref: '#/components/schemas/PersonalInfo',
+            },
+          },
+        },
+        TravelPreferencesRequest: {
+          type: 'object',
+          description: 'Travel preferences data to save or update',
+          properties: {
+            whoIsGoing: {
+              type: 'string',
+              example: 'solo',
+            },
+            preferredTravelDocuments: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              example: ['passport', 'visa'],
+            },
+            preferredFlightStyle: {
+              type: 'string',
+              example: 'business',
+            },
+            preferredInDestinationTransport: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              example: ['rental_car', 'public_transport', 'taxi'],
+            },
+            travelFrequencyPerYear: {
+              type: 'string',
+              example: '6-10',
+            },
+            travelerType: {
+              type: 'string',
+              example: 'adventure',
+            },
+            preferredTripDuration: {
+              type: 'string',
+              example: '2_weeks',
+            },
+            tripBudget: {
+              $ref: '#/components/schemas/TripBudget',
+            },
+            accommodationStyle: {
+              type: 'string',
+              example: 'luxury_hotel',
+            },
+            loyaltyPrograms: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/LoyaltyProgram',
+              },
+            },
+            interestsAndVibes: {
+              type: 'array',
+              items: {
+                type: 'string',
+              },
+              example: ['beaches', 'mountains', 'nightlife', 'culture', 'adventure'],
+            },
+            personalInfo: {
+              $ref: '#/components/schemas/PersonalInfo',
+            },
+          },
+        },
+        TravelPreferencesResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            message: {
+              type: 'string',
+              example: 'Travel preferences saved successfully',
+            },
+            data: {
+              $ref: '#/components/schemas/TravelPreferences',
+            },
+          },
+        },
+        TravelPreferencesGetResponse: {
+          type: 'object',
+          properties: {
+            success: {
+              type: 'boolean',
+              example: true,
+            },
+            data: {
+              $ref: '#/components/schemas/TravelPreferences',
+            },
+          },
+        },
+      },
+    },
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
+  },
+  apis: ['./src/routes/*.js'],
+};
+
+const swaggerSpec = swaggerJsdoc(options);
+
+module.exports = swaggerSpec;

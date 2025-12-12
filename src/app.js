@@ -1,6 +1,8 @@
 require("dotenv").config();
 const express = require("express");
 var cors = require("cors");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./config/swagger");
 const { google } = require("googleapis");
 const rateLimit = require("./middleware/rateLimit");
 const OpenAI = require("openai");
@@ -23,6 +25,12 @@ initializeFirebase();
 app.use(cors());
 app.use(express.json());
 app.use(rateLimit());
+
+// Swagger Documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "Nomad Navigator API Documentation"
+}));
 
 const protectEndpoint = (req, res, next) => {
     if (!getAuth) {
