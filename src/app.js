@@ -11,6 +11,7 @@ const linkRoutes = require("./routes/linkRoutes");
 const travelPreferenceRoutes = require("./routes/travelPreferenceRoutes");
 const tripSuggestionRoutes = require("./routes/tripSuggestionRoutes");
 const tripRoutes = require("./routes/tripRoutes");
+const travelConfirmationRoutes = require("./routes/travelConfirmationRoutes");
 const { initializeFirebase } = require("./config/database");
 
 const app = express();
