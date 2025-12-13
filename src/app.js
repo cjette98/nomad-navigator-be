@@ -19,6 +19,15 @@ const PORT = process.env.PORT || 3000;
 
 let getAuth;
 
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customCss: ".swagger-ui .topbar { display: none }",
+    customSiteTitle: "Nomad Navigator API Documentation",
+  })
+);
+
 
 // Initialize Firebase
 initializeFirebase();
@@ -27,10 +36,11 @@ app.use(express.json());
 app.use(rateLimit());
 
 // Swagger Documentation
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: "Nomad Navigator API Documentation"
-}));
+// app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+//   customCss: '.swagger-ui .topbar { display: none }',
+//   customSiteTitle: "Nomad Navigator API Documentation"
+// }));
+
 
 const protectEndpoint = (req, res, next) => {
     if (!getAuth) {
