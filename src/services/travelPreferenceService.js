@@ -2,7 +2,7 @@ const { getFirestore } = require("../config/database");
 const admin = require("firebase-admin");
 
 const COLLECTION_NAME = "travelPreferences";
-
+const COLLECTION_NAME_2 = "travelPreferences-Setting";
 /**
  * Save or update travel preferences for a user
  * @param {string} userId - The user ID from Clerk
@@ -88,8 +88,34 @@ const deleteTravelPreferences = async (userId) => {
   }
 };
 
+/**
+ * Get travel preferences requirments for a user onboarding
+ * @returns {Promise<boolean>} - True if deleted, false if not found
+ */
+const getTravelPreferencesSettings = async () => {
+  try {
+    const db = getFirestore();
+    const snapshot = await db.collection(COLLECTION_NAME_2).get();
+
+    if (snapshot.docs.length > 0) {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      return data;
+    }
+
+    return [];
+    
+  } catch (error) {
+    console.error("Error getting travel preferences:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   saveTravelPreferences,
   getTravelPreferences,
   deleteTravelPreferences,
+  getTravelPreferencesSettings,
 };

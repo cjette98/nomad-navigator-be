@@ -2,6 +2,7 @@ const {
   saveTravelPreferences,
   getTravelPreferences,
   deleteTravelPreferences,
+  getTravelPreferencesSettings
 } = require("../services/travelPreferenceService");
 
 /**
@@ -174,10 +175,52 @@ const deletePreferences = async (req, res) => {
   }
 };
 
+
+/**
+ * Get travel preferences item for onboarding
+ * GET /api/travel-preferences-settings
+ */
+const getTravelPreferencesItems = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    const preferences = await getTravelPreferencesSettings();
+
+    if (!preferences) {
+      return res.status(404).json({
+        success: false,
+        message: "No Data",
+        data: [],
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: preferences,
+    });
+  } catch (error) {
+    console.error("Error in who is going on controller:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get who is going on",
+      error: error.message,
+    });
+  }
+};
+
+
 module.exports = {
   savePreferences,
   getPreferences,
   updatePreferences,
   deletePreferences,
+  getTravelPreferencesItems
 };
 

@@ -4,6 +4,7 @@ const {
   getPreferences,
   updatePreferences,
   deletePreferences,
+  getTravelPreferencesItems
 } = require("../controllers/travelPreferenceController");
 
 const router = express.Router();
@@ -211,5 +212,6 @@ router.get("/travel-preferences", getPreferences);
  */
 router.put("/travel-preferences", updatePreferences);
 
-module.exports = router;
+router.get("/travel-preferences-settings", getTravelPreferencesItems);
 
+module.exports = router;
