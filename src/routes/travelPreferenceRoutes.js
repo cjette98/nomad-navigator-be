@@ -212,6 +212,53 @@ router.get("/travel-preferences", getPreferences);
  */
 router.put("/travel-preferences", updatePreferences);
 
+/**
+ * @swagger
+ * /api/travel-preferences-settings:
+ *   get:
+ *     summary: Get travel preferences settings
+ *     description: Retrieves the travel preferences setttings requirements for user onboarding
+ *     tags: [Travel Preferences Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Travel preferences retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TravelPreferencesSettingsGetResponse'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Travel preferences not found for user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Travel preferences not found"
+ *                 data:
+ *                   type: object
+ *                   nullable: true
+ *                   example: null
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 router.get("/travel-preferences-settings", getTravelPreferencesItems);
 
 module.exports = router;

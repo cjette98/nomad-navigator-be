@@ -1,129 +1,132 @@
-const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerJsdoc = require("swagger-jsdoc");
 
 const options = {
   definition: {
-    openapi: '3.0.0',
+    openapi: "3.0.0",
     info: {
-      title: 'Nomad Navigator API',
-      version: '1.0.0',
-      description: 'API documentation for Aitinery',
+      title: "Aitineri API",
+      version: "1.0.0",
+      description: "API documentation for Aitinery",
       contact: {
-        name: 'API Support',
+        name: "API Support",
       },
     },
     servers: [
       {
-        url: 'http://localhost:3000',
-        description: 'Development server',
+        url: "http://localhost:3000",
+        description: "Development server",
       },
     ],
     components: {
       securitySchemes: {
         bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Clerk authentication token. Get this from your Clerk session.',
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description:
+            "Clerk authentication token. Get this from your Clerk session.",
         },
       },
       schemas: {
         Error: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
+              type: "boolean",
               example: false,
             },
             message: {
-              type: 'string',
-              example: 'Error message here',
+              type: "string",
+              example: "Error message here",
             },
             error: {
-              type: 'string',
-              example: 'Detailed error message',
+              type: "string",
+              example: "Detailed error message",
             },
           },
         },
         TripSuggestionRequest: {
-          type: 'object',
-          required: ['destinationOrVibe'],
+          type: "object",
+          required: ["destinationOrVibe"],
           properties: {
             destinationOrVibe: {
-              type: 'string',
-              description: 'Destination name or travel vibe (e.g., "Lisbon, food + culture")',
-              example: 'Lisbon, food + culture',
+              type: "string",
+              description:
+                'Destination name or travel vibe (e.g., "Lisbon, food + culture")',
+              example: "Lisbon, food + culture",
             },
             mustHaves: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              description: 'List of must-have experiences or requirements',
-              example: ['great coffee', 'walkable areas', 'historic sites'],
+              description: "List of must-have experiences or requirements",
+              example: ["great coffee", "walkable areas", "historic sites"],
             },
             durationDays: {
-              type: 'number',
-              description: 'Number of days for the trip',
+              type: "number",
+              description: "Number of days for the trip",
               example: 5,
             },
             startDate: {
-              type: 'string',
-              format: 'date',
-              description: 'Trip start date (YYYY-MM-DD)',
-              example: '2025-02-10',
+              type: "string",
+              format: "date",
+              description: "Trip start date (YYYY-MM-DD)",
+              example: "2025-02-10",
             },
             endDate: {
-              type: 'string',
-              format: 'date',
-              description: 'Trip end date (YYYY-MM-DD)',
-              example: '2025-02-15',
+              type: "string",
+              format: "date",
+              description: "Trip end date (YYYY-MM-DD)",
+              example: "2025-02-15",
             },
             travelPace: {
-              type: 'string',
-              enum: ['slow', 'moderate', 'fast'],
-              description: 'Preferred travel pace',
-              example: 'slow',
+              type: "string",
+              enum: ["slow", "moderate", "fast"],
+              description: "Preferred travel pace",
+              example: "slow",
             },
             travelers: {
-              type: 'number',
-              description: 'Number of travelers',
+              type: "number",
+              description: "Number of travelers",
               example: 2,
             },
             budget: {
-              type: 'string',
-              enum: ['budget', 'mid', 'luxury'],
-              description: 'Budget level',
-              example: 'mid',
+              type: "string",
+              enum: ["budget", "mid", "luxury"],
+              description: "Budget level",
+              example: "mid",
             },
           },
         },
         TripSuggestionResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
+              type: "boolean",
               example: true,
             },
             message: {
-              type: 'string',
-              example: 'Trip suggestions generated successfully',
+              type: "string",
+              example: "Trip suggestions generated successfully",
             },
             data: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'object',
+                type: "object",
                 properties: {
                   destination: {
-                    type: 'string',
-                    example: 'Lisbon',
+                    type: "string",
+                    example: "Lisbon",
                   },
                   title: {
-                    type: 'string',
-                    example: 'Food + Culture long weekend',
+                    type: "string",
+                    example: "Food + Culture long weekend",
                   },
                   description: {
-                    type: 'string',
-                    example: 'A perfect blend of Portuguese cuisine and historic charm',
+                    type: "string",
+                    example:
+                      "A perfect blend of Portuguese cuisine and historic charm",
                   },
                 },
               },
@@ -131,157 +134,158 @@ const options = {
           },
         },
         CreateTripRequest: {
-          type: 'object',
-          required: ['selectedTrip'],
+          type: "object",
+          required: ["selectedTrip"],
           properties: {
             selectedTrip: {
-              type: 'object',
-              description: 'The selected trip suggestion data',
+              type: "object",
+              description: "The selected trip suggestion data",
               properties: {
                 destination: {
-                  type: 'string',
-                  example: 'Lisbon',
+                  type: "string",
+                  example: "Lisbon",
                 },
                 title: {
-                  type: 'string',
-                  example: 'Food + Culture long weekend',
+                  type: "string",
+                  example: "Food + Culture long weekend",
                 },
                 startDate: {
-                  type: 'string',
-                  format: 'date',
-                  example: '2025-02-10',
+                  type: "string",
+                  format: "date",
+                  example: "2025-02-10",
                 },
                 endDate: {
-                  type: 'string',
-                  format: 'date',
-                  example: '2025-02-13',
+                  type: "string",
+                  format: "date",
+                  example: "2025-02-13",
                 },
                 durationDays: {
-                  type: 'number',
+                  type: "number",
                   example: 4,
                 },
                 travelers: {
-                  type: 'number',
+                  type: "number",
                   example: 2,
                 },
                 budget: {
-                  type: 'string',
-                  example: 'mid',
+                  type: "string",
+                  example: "mid",
                 },
                 vibe: {
-                  type: 'array',
+                  type: "array",
                   items: {
-                    type: 'string',
+                    type: "string",
                   },
-                  example: ['food', 'history', 'walkable core'],
+                  example: ["food", "history", "walkable core"],
                 },
               },
             },
           },
         },
         Activity: {
-          type: 'object',
-          required: ['name', 'time'],
+          type: "object",
+          required: ["name", "time"],
           properties: {
             name: {
-              type: 'string',
-              description: 'Activity name',
-              example: 'Arrival at Sorsogon Airport',
+              type: "string",
+              description: "Activity name",
+              example: "Arrival at Sorsogon Airport",
             },
             time: {
-              type: 'string',
-              description: 'Activity time',
-              example: '10:00 AM',
+              type: "string",
+              description: "Activity time",
+              example: "10:00 AM",
             },
             description: {
-              type: 'string',
-              description: 'Detailed description of the activity',
-              example: 'Arrive in Sorsogon and transfer to your accommodation.',
+              type: "string",
+              description: "Detailed description of the activity",
+              example: "Arrive in Sorsogon and transfer to your accommodation.",
             },
             type: {
-              type: 'string',
-              description: 'Activity type (e.g., transport, meal, sightseeing)',
-              example: 'transport',
+              type: "string",
+              description: "Activity type (e.g., transport, meal, sightseeing)",
+              example: "transport",
             },
             location: {
-              type: 'string',
-              description: 'Location of the activity',
-              example: 'Sorsogon Airport',
+              type: "string",
+              description: "Location of the activity",
+              example: "Sorsogon Airport",
             },
           },
         },
         UpdateActivitiesRequest: {
-          type: 'object',
-          required: ['activities'],
+          type: "object",
+          required: ["activities"],
           properties: {
             activities: {
-              type: 'array',
-              description: 'Array of activities to replace existing activities for the day',
+              type: "array",
+              description:
+                "Array of activities to replace existing activities for the day",
               items: {
-                $ref: '#/components/schemas/Activity',
+                $ref: "#/components/schemas/Activity",
               },
             },
           },
         },
         AddActivitiesRequest: {
-          type: 'object',
-          required: ['activities'],
+          type: "object",
+          required: ["activities"],
           properties: {
             activities: {
-              type: 'array',
-              description: 'Array of new activities to add to the day',
+              type: "array",
+              description: "Array of new activities to add to the day",
               items: {
-                $ref: '#/components/schemas/Activity',
+                $ref: "#/components/schemas/Activity",
               },
             },
           },
         },
         Trip: {
-          type: 'object',
+          type: "object",
           properties: {
             id: {
-              type: 'string',
-              example: 'trip123',
+              type: "string",
+              example: "trip123",
             },
             userId: {
-              type: 'string',
-              example: 'user_abc123',
+              type: "string",
+              example: "user_abc123",
             },
             selectedTrip: {
-              type: 'object',
+              type: "object",
             },
             itinerary: {
-              type: 'object',
+              type: "object",
               properties: {
                 day1: {
-                  type: 'object',
+                  type: "object",
                   properties: {
                     activities: {
-                      type: 'array',
+                      type: "array",
                       items: {
-                        $ref: '#/components/schemas/Activity',
+                        $ref: "#/components/schemas/Activity",
                       },
                     },
                   },
                 },
                 day2: {
-                  type: 'object',
+                  type: "object",
                   properties: {
                     activities: {
-                      type: 'array',
+                      type: "array",
                       items: {
-                        $ref: '#/components/schemas/Activity',
+                        $ref: "#/components/schemas/Activity",
                       },
                     },
                   },
                 },
                 day3: {
-                  type: 'object',
+                  type: "object",
                   properties: {
                     activities: {
-                      type: 'array',
+                      type: "array",
                       items: {
-                        $ref: '#/components/schemas/Activity',
+                        $ref: "#/components/schemas/Activity",
                       },
                     },
                   },
@@ -289,262 +293,622 @@ const options = {
               },
             },
             createdAt: {
-              type: 'string',
-              format: 'date-time',
+              type: "string",
+              format: "date-time",
             },
             updatedAt: {
-              type: 'string',
-              format: 'date-time',
+              type: "string",
+              format: "date-time",
             },
           },
         },
         TripResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
+              type: "boolean",
               example: true,
             },
             message: {
-              type: 'string',
-              example: 'Trip created successfully with itinerary',
+              type: "string",
+              example: "Trip created successfully with itinerary",
             },
             data: {
-              $ref: '#/components/schemas/Trip',
+              $ref: "#/components/schemas/Trip",
             },
           },
         },
         TripsListResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
+              type: "boolean",
               example: true,
             },
             data: {
-              type: 'array',
+              type: "array",
               items: {
-                $ref: '#/components/schemas/Trip',
+                $ref: "#/components/schemas/Trip",
               },
             },
           },
         },
         TripBudget: {
-          type: 'object',
+          type: "object",
           properties: {
             currency: {
-              type: 'string',
-              description: 'Currency code (e.g., USD, EUR)',
-              example: 'USD',
+              type: "string",
+              description: "Currency code (e.g., USD, EUR)",
+              example: "USD",
             },
             min: {
-              type: 'number',
-              description: 'Minimum budget amount',
+              type: "number",
+              description: "Minimum budget amount",
               example: 1000,
             },
             max: {
-              type: 'number',
-              description: 'Maximum budget amount',
+              type: "number",
+              description: "Maximum budget amount",
               example: 5000,
             },
           },
         },
         LoyaltyProgram: {
-          type: 'object',
+          type: "object",
           properties: {
             programName: {
-              type: 'string',
-              description: 'Name of the loyalty program',
-              example: 'Marriott Bonvoy',
+              type: "string",
+              description: "Name of the loyalty program",
+              example: "Marriott Bonvoy",
             },
             membershipNumber: {
-              type: 'string',
-              description: 'Membership number',
-              example: '123456789',
+              type: "string",
+              description: "Membership number",
+              example: "123456789",
             },
             tier: {
-              type: 'string',
-              description: 'Membership tier level',
-              example: 'Gold',
+              type: "string",
+              description: "Membership tier level",
+              example: "Gold",
             },
           },
         },
         PersonalInfo: {
-          type: 'object',
+          type: "object",
           properties: {
             country: {
-              type: 'string',
-              description: 'Country of residence',
-              example: 'United States',
+              type: "string",
+              description: "Country of residence",
+              example: "United States",
             },
             phoneNumber: {
-              type: 'string',
-              description: 'Phone number with country code',
-              example: '+1234567890',
+              type: "string",
+              description: "Phone number with country code",
+              example: "+1234567890",
             },
           },
         },
         TravelPreferences: {
-          type: 'object',
-          description: 'User travel preferences',
+          type: "object",
+          description: "User travel preferences",
           properties: {
             whoIsGoing: {
-              type: 'string',
-              description: 'Travel companion type',
-              example: 'solo',
+              type: "string",
+              description: "Travel companion type",
+              example: "solo",
             },
             preferredTravelDocuments: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              description: 'List of preferred travel documents',
-              example: ['passport', 'visa'],
+              description: "List of preferred travel documents",
+              example: ["passport", "visa"],
             },
             preferredFlightStyle: {
-              type: 'string',
-              description: 'Preferred flight class/style',
-              example: 'business',
+              type: "string",
+              description: "Preferred flight class/style",
+              example: "business",
             },
             preferredInDestinationTransport: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              description: 'Preferred transportation methods at destination',
-              example: ['rental_car', 'public_transport', 'taxi'],
+              description: "Preferred transportation methods at destination",
+              example: ["rental_car", "public_transport", "taxi"],
             },
             travelFrequencyPerYear: {
-              type: 'string',
-              description: 'Number of trips per year',
-              example: '6-10',
+              type: "string",
+              description: "Number of trips per year",
+              example: "6-10",
             },
             travelerType: {
-              type: 'string',
-              description: 'Type of traveler',
-              example: 'adventure',
+              type: "string",
+              description: "Type of traveler",
+              example: "adventure",
             },
             preferredTripDuration: {
-              type: 'string',
-              description: 'Preferred trip duration',
-              example: '2_weeks',
+              type: "string",
+              description: "Preferred trip duration",
+              example: "2_weeks",
             },
             tripBudget: {
-              $ref: '#/components/schemas/TripBudget',
+              $ref: "#/components/schemas/TripBudget",
             },
             accommodationStyle: {
-              type: 'string',
-              description: 'Preferred accommodation style',
-              example: 'luxury_hotel',
+              type: "string",
+              description: "Preferred accommodation style",
+              example: "luxury_hotel",
             },
             loyaltyPrograms: {
-              type: 'array',
+              type: "array",
               items: {
-                $ref: '#/components/schemas/LoyaltyProgram',
+                $ref: "#/components/schemas/LoyaltyProgram",
               },
-              description: 'List of loyalty program memberships',
+              description: "List of loyalty program memberships",
             },
             interestsAndVibes: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              description: 'Travel interests and vibes',
-              example: ['beaches', 'mountains', 'nightlife', 'culture', 'adventure'],
+              description: "Travel interests and vibes",
+              example: [
+                "beaches",
+                "mountains",
+                "nightlife",
+                "culture",
+                "adventure",
+              ],
             },
             personalInfo: {
-              $ref: '#/components/schemas/PersonalInfo',
+              $ref: "#/components/schemas/PersonalInfo",
             },
           },
         },
         TravelPreferencesRequest: {
-          type: 'object',
-          description: 'Travel preferences data to save or update',
+          type: "object",
+          description: "Travel preferences data to save or update",
           properties: {
             whoIsGoing: {
-              type: 'string',
-              example: 'solo',
+              type: "string",
+              example: "solo",
             },
             preferredTravelDocuments: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              example: ['passport', 'visa'],
+              example: ["passport", "visa"],
             },
             preferredFlightStyle: {
-              type: 'string',
-              example: 'business',
+              type: "string",
+              example: "business",
             },
             preferredInDestinationTransport: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              example: ['rental_car', 'public_transport', 'taxi'],
+              example: ["rental_car", "public_transport", "taxi"],
             },
             travelFrequencyPerYear: {
-              type: 'string',
-              example: '6-10',
+              type: "string",
+              example: "6-10",
             },
             travelerType: {
-              type: 'string',
-              example: 'adventure',
+              type: "string",
+              example: "adventure",
             },
             preferredTripDuration: {
-              type: 'string',
-              example: '2_weeks',
+              type: "string",
+              example: "2_weeks",
             },
             tripBudget: {
-              $ref: '#/components/schemas/TripBudget',
+              $ref: "#/components/schemas/TripBudget",
             },
             accommodationStyle: {
-              type: 'string',
-              example: 'luxury_hotel',
+              type: "string",
+              example: "luxury_hotel",
             },
             loyaltyPrograms: {
-              type: 'array',
+              type: "array",
               items: {
-                $ref: '#/components/schemas/LoyaltyProgram',
+                $ref: "#/components/schemas/LoyaltyProgram",
               },
             },
             interestsAndVibes: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'string',
+                type: "string",
               },
-              example: ['beaches', 'mountains', 'nightlife', 'culture', 'adventure'],
+              example: [
+                "beaches",
+                "mountains",
+                "nightlife",
+                "culture",
+                "adventure",
+              ],
             },
             personalInfo: {
-              $ref: '#/components/schemas/PersonalInfo',
+              $ref: "#/components/schemas/PersonalInfo",
             },
           },
         },
         TravelPreferencesResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
+              type: "boolean",
               example: true,
             },
             message: {
-              type: 'string',
-              example: 'Travel preferences saved successfully',
+              type: "string",
+              example: "Travel preferences saved successfully",
             },
             data: {
-              $ref: '#/components/schemas/TravelPreferences',
+              $ref: "#/components/schemas/TravelPreferences",
             },
           },
         },
-        TravelPreferencesGetResponse: {
-          type: 'object',
+        TravelPreferencesSettingsGetResponse: {
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
-              example: true,
+              type: "boolean",
+              example: [
+                {
+                  id: "string",
+                  preferred_travel_documents: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                  ],
+                  prefered_travel_flights: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                  ],
+                  who_is_going: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "Friends",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                  ],
+                  loyalty_programs: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                  ],
+                  traveller_type: [
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                  ],
+                  travel_per_year: [
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                  ],
+                  trip_budget: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "💎",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                  ],
+                  preferred_in_destination_transport: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                  ],
+                  trip_duration: [
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                    {
+                      id: "number",
+                      label: "string",
+                      value: "string",
+                    },
+                  ],
+                  interest_and_vibes: [
+                    {
+                      id: "number",
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                    },
+                  ],
+                  accomodation_style: [
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                    {
+                      id: "number",
+                      value: "string",
+                      label: "string",
+                      emoji: "string",
+                      subtitle: "string",
+                    },
+                  ],
+                },
+              ],
             },
             data: {
-              $ref: '#/components/schemas/TravelPreferences',
+              $ref: "#/components/schemas/TravelPreferences",
             },
           },
         },
@@ -556,7 +920,7 @@ const options = {
       },
     ],
   },
-  apis: ['./src/routes/*.js'],
+  apis: ["./src/routes/*.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(options);
