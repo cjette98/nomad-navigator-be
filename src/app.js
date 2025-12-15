@@ -11,6 +11,7 @@ const linkRoutes = require("./routes/linkRoutes");
 const travelPreferenceRoutes = require("./routes/travelPreferenceRoutes");
 const tripSuggestionRoutes = require("./routes/tripSuggestionRoutes");
 const tripRoutes = require("./routes/tripRoutes");
+const travelConfirmationRoutes = require("./routes/travelConfirmationRoutes");
 const { initializeFirebase } = require("./config/database");
 
 const app = express();
@@ -75,6 +76,7 @@ async function loadClerkAndStartServer() {
     app.use("/api", protectEndpoint, travelPreferenceRoutes);
     app.use("/api", protectEndpoint, tripSuggestionRoutes);
     app.use("/api", protectEndpoint, tripRoutes);
+    app.use("/api/travel-confirmations", protectEndpoint, travelConfirmationRoutes);
   } catch (error) {
     console.error("Failed to load Clerk module:", error);
   }
