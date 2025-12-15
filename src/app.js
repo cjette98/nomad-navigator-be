@@ -76,6 +76,7 @@ async function loadClerkAndStartServer() {
     app.use("/api", protectEndpoint, travelPreferenceRoutes);
     app.use("/api", protectEndpoint, tripSuggestionRoutes);
     app.use("/api", protectEndpoint, tripRoutes);
+    app.use("/api/travel-confirmations", protectEndpoint, travelConfirmationRoutes);
   } catch (error) {
     console.error("Failed to load Clerk module:", error);
   }
