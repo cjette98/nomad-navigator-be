@@ -23,43 +23,53 @@ const extractLocations = async (summaryData) => {
     return [];
   }
 
-  const prompt = `You are a location extraction assistant. Analyze the following content and identify all primary locations (cities, countries, regions, or specific places) mentioned.
+  const prompt = `You are a location extraction assistant. Analyze the following content and identify the PRIMARY location where the content is actually filmed, featured, or takes place.
 
 Content:
 ${contentText}
 
-Return ONLY a valid JSON array of location names (strings) in the format "City/Place, Country", without any explanations or markdown.
-If no clear locations are found, return an empty array [].
+CRITICAL RULES:
+1. Focus on the ACTUAL location where the content is filmed/featured, NOT where food items or dishes originate from
+2. If a cafe/restaurant is mentioned with a location (e.g., "Cesar's Cafe in Legazpi, Albay"), that is the PRIMARY location
+3. Do NOT extract locations based on food origins (e.g., don't extract "Indonesia" just because "Nasi Goreng" is mentioned - extract the location where the restaurant/cafe actually is)
+4. If multiple locations are mentioned, prioritize the most specific and relevant one (city/region over country)
+5. Return ONLY the PRIMARY location - a single location string, not an array
 
-IMPORTANT: Always format locations as "City/Place, Country" when possible. If the country is not mentioned but can be inferred from context, include it. If only a country is mentioned, use "Country" format.
+Return ONLY a single location string in the format "City/Place, Country" without any explanations, markdown, or JSON formatting.
+If no clear location is found, return an empty string "".
+
+Examples of correct extraction:
+- Content mentions "Cesar's Cafe in Legazpi, Albay" and dishes like "Nasi Goreng" → Return: "Legazpi, Philippines" (NOT "Indonesia")
+- Content mentions "Restaurant in Paris" and "Pizza" → Return: "Paris, France" (NOT "Italy")
+- Content mentions "Tokyo cafe" and "French pastries" → Return: "Tokyo, Japan" (NOT "France")
 
 Examples of valid locations: 
 - "Paris, France"
 - "Tokyo, Japan"
-- "Albay, Philippines"
+- "Legazpi, Philippines"
 - "New York, United States"
 - "Bali, Indonesia"
 - "Tuscany, Italy"
-- "Eiffel Tower, France"
-- "Shibuya District, Japan"
 
-Examples of invalid (not locations): "Restaurant", "Cafe", "Food", "Travel", "Lifestyle"
-
-Output format: ["Location1, Country1", "Location2, Country2", ...]`;
+Output format: "City/Place, Country" or "" if no location found`;
 
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
+      temperature: 0.2, // Lower temperature for more consistent location extraction
     });
 
     let content = response.choices[0].message.content.trim();
     // Remove markdown formatting if present
-    content = content.replace(/```json\s*/g, "").replace(/```/g, "").trim();
+    content = content.replace(/```json\s*/g, "").replace(/```/g, "").replace(/"/g, "").trim();
 
-    const locations = JSON.parse(content);
-    return Array.isArray(locations) ? locations.filter((loc) => loc && typeof loc === "string") : [];
+    // Return as array with single location, or empty array
+    if (!content || content === "" || content === "null") {
+      return [];
+    }
+    
+    return [content]; // Return as array with single primary location
   } catch (err) {
     console.error("❌ Error extracting locations:", err);
     // Fallback: try to extract location-like words from titles

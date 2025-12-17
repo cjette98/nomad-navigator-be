@@ -23,103 +23,122 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
       throw new Error("UserId is required to save categorized content");
     }
 
-    // Extract locations from content
-    console.log("📍 Extracting locations from content...");
+    // Extract primary location from content
+    console.log("📍 Extracting primary location from content...");
     const locations = await extractLocations(contentData);
     console.log("📍 Extracted locations:", locations);
 
-    if (locations.length === 0) {
+    // Use only the primary (first) location to avoid duplicates
+    const primaryLocation = locations.length > 0 ? locations[0] : "Uncategorized";
+    
+    if (primaryLocation === "Uncategorized") {
       console.log("⚠️ No locations found, saving to 'Uncategorized'");
-      locations.push("Uncategorized");
+    } else {
+      console.log(`📍 Using primary location: ${primaryLocation}`);
     }
 
     const db = getFirestore();
     const categoriesRef = db.collection(COLLECTION_NAME);
     const savedItems = [];
 
-    // Process each location
-    for (const location of locations) {
-      // Normalize location name (capitalize first letter, lowercase rest)
-      const normalizedLocation = location
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(" ");
+    // Process only the primary location
+    const location = primaryLocation;
+    // Normalize location name (capitalize first letter, lowercase rest)
+    const normalizedLocation = location
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ");
 
-      // Check if category exists for this user
-      const categoryQuery = await categoriesRef
-        .where("location", "==", normalizedLocation)
-        .where("userId", "==", userId)
-        .limit(1)
-        .get();
+    // Check if category exists for this user
+    const categoryQuery = await categoriesRef
+      .where("location", "==", normalizedLocation)
+      .where("userId", "==", userId)
+      .limit(1)
+      .get();
 
-      let categoryDocRef;
-      let existingItems = [];
+    let categoryDocRef;
+    let existingItems = [];
 
-      if (!categoryQuery.empty) {
-        // Category exists - get existing document
-        categoryDocRef = categoryQuery.docs[0].ref;
-        const existingData = categoryQuery.docs[0].data();
-        existingItems = existingData.items || [];
-        console.log(`✅ Found existing category: ${normalizedLocation}`);
-      } else {
-        // Create new category
-        categoryDocRef = categoriesRef.doc();
-        console.log(`🆕 Creating new category: ${normalizedLocation}`);
-      }
+    if (!categoryQuery.empty) {
+      // Category exists - get existing document
+      categoryDocRef = categoryQuery.docs[0].ref;
+      const existingData = categoryQuery.docs[0].data();
+      existingItems = existingData.items || [];
+      console.log(`✅ Found existing category: ${normalizedLocation}`);
+    } else {
+      // Create new category
+      categoryDocRef = categoriesRef.doc();
+      console.log(`🆕 Creating new category: ${normalizedLocation}`);
+    }
 
-      // Add metadata to each content item
-      const enrichedItems = contentData.map((item) => ({
-        ...item,
-        sourceType,
-        sourceUrl,
-        addedAt: admin.firestore.Timestamp.now(),
-      }));
+    // Add metadata to each content item
+    const enrichedItems = contentData.map((item) => ({
+      ...item,
+      sourceType,
+      sourceUrl,
+      addedAt: admin.firestore.Timestamp.now(),
+    }));
 
-      // Merge with existing items (avoid duplicates based on title + sourceUrl)
-      const newItems = enrichedItems.filter((newItem) => {
-        return !existingItems.some(
-          (existingItem) =>
-            existingItem.title === newItem.title &&
-            existingItem.sourceUrl === newItem.sourceUrl
-        );
-      });
+    // Merge with existing items (avoid duplicates based on title + sourceUrl)
+    // Also check if this sourceUrl already exists in ANY location for this user to prevent cross-location duplicates
+    const allUserCategories = await categoriesRef
+      .where("userId", "==", userId)
+      .get();
+    
+    const allExistingItems = [];
+    allUserCategories.forEach((doc) => {
+      const items = doc.data().items || [];
+      allExistingItems.push(...items);
+    });
 
-      if (newItems.length > 0) {
-        const updatedItems = [...existingItems, ...newItems];
-        savedItems.push(...newItems);
+    const newItems = enrichedItems.filter((newItem) => {
+      // Check against items in current location
+      const existsInCurrentLocation = existingItems.some(
+        (existingItem) =>
+          existingItem.title === newItem.title &&
+          existingItem.sourceUrl === newItem.sourceUrl
+      );
+      
+      // Check against items in other locations (prevent duplicate sourceUrl across locations)
+      const existsInOtherLocation = allExistingItems.some(
+        (existingItem) =>
+          existingItem.sourceUrl === newItem.sourceUrl &&
+          existingItem.title === newItem.title
+      );
+      
+      return !existsInCurrentLocation && !existsInOtherLocation;
+    });
 
-        // Update or create category document
-        await categoryDocRef.set(
-          {
-            userId,
-            location: normalizedLocation,
-            items: updatedItems,
-            itemCount: updatedItems.length,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            ...(categoryQuery.empty && {
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            }),
-          },
-          { merge: true }
-        );
+    if (newItems.length > 0) {
+      const updatedItems = [...existingItems, ...newItems];
+      savedItems.push(...newItems);
 
-        console.log(
-          `✅ Saved ${newItems.length} item(s) to category: ${normalizedLocation}`
-        );
-      } else {
-        console.log(
-          `ℹ️ No new items to add to category: ${normalizedLocation} (duplicates skipped)`
-        );
-      }
+      // Update or create category document
+      await categoryDocRef.set(
+        {
+          userId,
+          location: normalizedLocation,
+          items: updatedItems,
+          itemCount: updatedItems.length,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          ...(categoryQuery.empty && {
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          }),
+        },
+        { merge: true }
+      );
+
+      console.log(
+        `✅ Saved ${newItems.length} item(s) to category: ${normalizedLocation}`
+      );
+    } else {
+      console.log(
+        `ℹ️ No new items to add to category: ${normalizedLocation} (duplicates skipped)`
+      );
     }
 
     return {
-      locations: locations.map((loc) =>
-        loc
-          .split(" ")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ")
-      ),
+      locations: [normalizedLocation],
       savedItems,
     };
   } catch (error) {
