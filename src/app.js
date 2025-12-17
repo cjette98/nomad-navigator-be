@@ -71,8 +71,8 @@ async function loadClerkAndStartServer() {
     getAuth = importedGetAuth;
 
     app.use(clerkMiddleware());
-    app.use("/api", protectEndpoint, videoRoutes);
-    app.use("/api", protectEndpoint, linkRoutes);
+    app.use("/api/inspiration", protectEndpoint, videoRoutes);
+    app.use("/api/inspiration", protectEndpoint, linkRoutes);
     app.use("/api", protectEndpoint, travelPreferenceRoutes);
     app.use("/api", protectEndpoint, tripSuggestionRoutes);
     app.use("/api", protectEndpoint, tripRoutes);
@@ -457,7 +457,7 @@ app.get("/", (req, res) => {
                 resultDiv.innerHTML = '<p>Loading...</p>';
 
                 try {
-                    const response = await fetch('/api/analyze-tiktok', {
+                    const response = await fetch('/api/inspiration/analyze-tiktok', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ url })

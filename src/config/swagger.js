@@ -539,6 +539,107 @@ const options = {
             },
           },
         },
+        TikTokAnalysisItem: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Name of the place, event, or subject featured in the video",
+              example: "Tokyo Ramen Shop",
+            },
+            description: {
+              type: "string",
+              description: "Short description (1-2 sentences) based on the title and context",
+              example: "A hidden gem in Shibuya serving authentic tonkotsu ramen with rich, creamy broth",
+            },
+            category: {
+              type: "string",
+              enum: ["Restaurant", "Cafe", "Travel", "Food", "Product", "Lifestyle"],
+              description: "Category of the inspiration item",
+              example: "Restaurant",
+            },
+          },
+        },
+        TikTokAnalysisResponse: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+              example: true,
+            },
+            data: {
+              type: "array",
+              description: "Array of inspiration items extracted from the TikTok video",
+              items: {
+                $ref: "#/components/schemas/TikTokAnalysisItem",
+              },
+            },
+          },
+        },
+        SuggestedActivity: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Short activity/place name",
+              example: "Visit Senso-ji Temple",
+            },
+            description: {
+              type: "string",
+              description: "1-2 sentence description of what to do/expect",
+              example: "Experience Tokyo's oldest temple and explore the traditional Nakamise shopping street",
+            },
+            category: {
+              type: "string",
+              enum: ["Food", "Lodging", "Sightseeing", "Experience", "Logistics", "Shopping", "Other"],
+              description: "Category of the suggested activity",
+              example: "Sightseeing",
+            },
+          },
+        },
+        LinkSummaryResponse: {
+          type: "object",
+          properties: {
+            success: {
+              type: "boolean",
+              example: true,
+            },
+            data: {
+              type: "object",
+              properties: {
+                sourceUrl: {
+                  type: "string",
+                  description: "The original URL that was summarized",
+                  example: "https://example.com/travel-blog-post",
+                },
+                summary: {
+                  type: "string",
+                  description: "2-3 sentence overview of the article focused on travel takeaways",
+                  example: "A comprehensive guide to Tokyo's best neighborhoods, covering everything from traditional temples in Asakusa to modern shopping districts in Shibuya.",
+                },
+                keyPoints: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                  },
+                  description: "3-5 short bullet points highlighting places, tips, or logistics",
+                  example: [
+                    "Shibuya is perfect for shopping and nightlife",
+                    "Asakusa offers traditional temple experiences",
+                    "Best visited during cherry blossom season (late March to early April)",
+                  ],
+                },
+                suggestedActivities: {
+                  type: "array",
+                  description: "Suggested activities that can be attached to trip itineraries",
+                  items: {
+                    $ref: "#/components/schemas/SuggestedActivity",
+                  },
+                },
+              },
+            },
+          },
+        },
         TravelPreferencesSettingsGetResponse: {
           type: "object",
           properties: {
