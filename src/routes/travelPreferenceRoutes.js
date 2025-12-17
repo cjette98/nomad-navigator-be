@@ -28,26 +28,14 @@ const router = express.Router();
  *             whoIsGoing: "solo"
  *             preferredTravelDocuments: ["passport", "visa"]
  *             preferredFlightStyle: "business"
- *             preferredInDestinationTransport: ["rental_car", "public_transport", "taxi"]
- *             travelFrequencyPerYear: "6-10"
- *             travelerType: "adventure"
- *             preferredTripDuration: "2_weeks"
- *             tripBudget:
- *               currency: "USD"
- *               min: 1000
- *               max: 5000
- *             accommodationStyle: "luxury_hotel"
- *             loyaltyPrograms:
- *               - programName: "Marriott Bonvoy"
- *                 membershipNumber: "123456789"
- *                 tier: "Gold"
- *               - programName: "United MileagePlus"
- *                 membershipNumber: "987654321"
- *                 tier: "Silver"
+ *             preferredInDestinationTransport: "rent a car"
+ *             travelPerYear: "rarely (1-2) trips"
+ *             travelerType: "hybrid"
+ *             preferredTripDuration: "standard vacation"
+ *             tripBudget: "cheap"
+ *             accommodationStyle: "luxury hotel"
+ *             loyaltyPrograms: "both"
  *             interestsAndVibes: ["beaches", "mountains", "nightlife", "culture", "adventure"]
- *             personalInfo:
- *               country: "United States"
- *               phoneNumber: "+1234567890"
  *     responses:
  *       200:
  *         description: Travel preferences saved successfully
@@ -143,26 +131,17 @@ router.get("/travel-preferences", getPreferences);
  *           schema:
  *             $ref: '#/components/schemas/TravelPreferencesRequest'
  *           example:
- *             whoIsGoing: "couple"
- *             preferredTravelDocuments: ["passport"]
- *             preferredFlightStyle: "economy"
- *             preferredInDestinationTransport: ["public_transport", "taxi"]
- *             travelFrequencyPerYear: "3-5"
- *             travelerType: "budget"
- *             preferredTripDuration: "1_week"
- *             tripBudget:
- *               currency: "USD"
- *               min: 500
- *               max: 2000
- *             accommodationStyle: "budget_hotel"
- *             loyaltyPrograms:
- *               - programName: "Marriott Bonvoy"
- *                 membershipNumber: "123456789"
- *                 tier: "Gold"
- *             interestsAndVibes: ["beaches", "culture"]
- *             personalInfo:
- *               country: "United States"
- *               phoneNumber: "+1234567890"
+ *             whoIsGoing: "solo"
+ *             preferredTravelDocuments: ["passport", "visa"]
+ *             preferredFlightStyle: "business"
+ *             preferredInDestinationTransport: "rent a car"
+ *             travelPerYear: "rarely (1-2) trips"
+ *             travelerType: "hybrid"
+ *             preferredTripDuration: "standard vacation"
+ *             tripBudget: "cheap"
+ *             accommodationStyle: "luxury hotel"
+ *             loyaltyPrograms: "both"
+ *             interestsAndVibes: ["beaches", "mountains", "nightlife", "culture", "adventure"]
  *     responses:
  *       200:
  *         description: Travel preferences updated successfully

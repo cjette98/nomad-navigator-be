@@ -411,42 +411,39 @@ const options = {
               example: "business",
             },
             preferredInDestinationTransport: {
-              type: "array",
-              items: {
-                type: "string",
-              },
-              description: "Preferred transportation methods at destination",
-              example: ["rental_car", "public_transport", "taxi"],
-            },
-            travelFrequencyPerYear: {
               type: "string",
-              description: "Number of trips per year",
-              example: "6-10",
+              description: "Preferred main transport at destination",
+              example: "rent a car",
+            },
+            travelPerYear: {
+              type: "string",
+              description: "Rough number of trips per year",
+              example: "rarely (1-2) trips",
             },
             travelerType: {
               type: "string",
               description: "Type of traveler",
-              example: "adventure",
+              example: "hybrid",
             },
             preferredTripDuration: {
               type: "string",
               description: "Preferred trip duration",
-              example: "2_weeks",
+              example: "standard vacation",
             },
             tripBudget: {
-              $ref: "#/components/schemas/TripBudget",
+              type: "string",
+              description: "Overall trip budget level",
+              example: "cheap",
             },
             accommodationStyle: {
               type: "string",
               description: "Preferred accommodation style",
-              example: "luxury_hotel",
+              example: "luxury hotel",
             },
             loyaltyPrograms: {
-              type: "array",
-              items: {
-                $ref: "#/components/schemas/LoyaltyProgram",
-              },
-              description: "List of loyalty program memberships",
+              type: "string",
+              description: "Loyalty program preference (e.g. both, airline_only, hotel_only, none)",
+              example: "both",
             },
             interestsAndVibes: {
               type: "array",
@@ -461,9 +458,6 @@ const options = {
                 "culture",
                 "adventure",
               ],
-            },
-            personalInfo: {
-              $ref: "#/components/schemas/PersonalInfo",
             },
           },
         },
@@ -487,36 +481,32 @@ const options = {
               example: "business",
             },
             preferredInDestinationTransport: {
-              type: "array",
-              items: {
-                type: "string",
-              },
-              example: ["rental_car", "public_transport", "taxi"],
-            },
-            travelFrequencyPerYear: {
               type: "string",
-              example: "6-10",
+              example: "rent a car",
+            },
+            travelPerYear: {
+              type: "string",
+              example: "rarely (1-2) trips",
             },
             travelerType: {
               type: "string",
-              example: "adventure",
+              example: "hybrid",
             },
             preferredTripDuration: {
               type: "string",
-              example: "2_weeks",
+              example: "standard vacation",
             },
             tripBudget: {
-              $ref: "#/components/schemas/TripBudget",
+              type: "string",
+              example: "cheap",
             },
             accommodationStyle: {
               type: "string",
-              example: "luxury_hotel",
+              example: "luxury hotel",
             },
             loyaltyPrograms: {
-              type: "array",
-              items: {
-                $ref: "#/components/schemas/LoyaltyProgram",
-              },
+              type: "string",
+              example: "both",
             },
             interestsAndVibes: {
               type: "array",
@@ -530,9 +520,6 @@ const options = {
                 "culture",
                 "adventure",
               ],
-            },
-            personalInfo: {
-              $ref: "#/components/schemas/PersonalInfo",
             },
           },
         },
