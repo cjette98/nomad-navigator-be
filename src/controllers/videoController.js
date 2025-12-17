@@ -2,6 +2,7 @@ const { getTikTokVideo } = require("../services/tiktokService.js");
 const { uploadToGCS,deleteFromGCS } = require("../services/gcsService.js");
 const { analyzeVideo } = require("../services/videoAIService.js");
 const { generateAISummary } = require("../services/aiSummaryService.js");
+const { saveCategorizedContent, getAllCategories } = require("../services/categorizationService.js");
 
 const analyzeTikTok = async (req, res) => {
   let gcsUri = null;
@@ -27,6 +28,19 @@ const analyzeTikTok = async (req, res) => {
     const summary = await generateAISummary(labels, texts, transcript, description);
     console.log("✅ Done creating AI summary...");
 
+    // Auto-categorize and save content by location
+    console.log("📂 Auto-categorizing content by location...");
+    try {
+      const categorizationResult = await saveCategorizedContent(
+        summary,
+        "video",
+        url
+      );
+      console.log("✅ Content categorized and saved:", categorizationResult);
+    } catch (categorizationError) {
+      console.error("⚠️ Error during categorization (continuing anyway):", categorizationError.message);
+    }
+
     return res.json({ success: true, data: summary });
   } catch (err) {
     console.error("❌ Error:", err.message);
@@ -45,4 +59,38 @@ const analyzeTikTok = async (req, res) => {
   }
 };
 
-module.exports = { analyzeTikTok };
+const getAllInspirations = async (req, res) => {
+  try {
+    console.log("📚 Fetching all inspirations...");
+    const categories = await getAllCategories();
+    
+    // Transform the data organized by location
+    const organizedByLocation = categories.map((category) => ({
+      location: category.location,
+      itemCount: category.itemCount,
+      items: category.items || [],
+      createdAt: category.createdAt,
+      updatedAt: category.updatedAt,
+    }));
+
+    // Calculate total items across all categories
+    const totalItems = organizedByLocation.reduce(
+      (sum, category) => sum + category.itemCount,
+      0
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        organizedByLocation,
+        totalCategories: categories.length,
+        totalItems,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error fetching inspirations:", err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { analyzeTikTok, getAllInspirations };
