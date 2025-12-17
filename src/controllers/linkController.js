@@ -3,6 +3,14 @@ const { saveCategorizedContent } = require("../services/categorizationService.js
 
 const summarizeLink = async (req, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
     const { url } = req.body;
     if (!url) {
       return res.status(400).json({ success: false, message: "URL is required" });
@@ -19,7 +27,8 @@ const summarizeLink = async (req, res) => {
         const categorizationResult = await saveCategorizedContent(
           activities,
           "link",
-          linkData.sourceUrl || url
+          linkData.sourceUrl || url,
+          userId
         );
         console.log("✅ Link content categorized and saved:", categorizationResult);
       } catch (categorizationError) {

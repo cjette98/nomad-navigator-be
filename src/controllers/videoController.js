@@ -8,6 +8,11 @@ const analyzeTikTok = async (req, res) => {
   let gcsUri = null;
   let filename = null;
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized: User ID not found" });
+    }
+
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: "TikTok URL required" });
 
@@ -34,7 +39,8 @@ const analyzeTikTok = async (req, res) => {
       const categorizationResult = await saveCategorizedContent(
         summary,
         "video",
-        url
+        url,
+        userId
       );
       console.log("✅ Content categorized and saved:", categorizationResult);
     } catch (categorizationError) {
@@ -61,8 +67,16 @@ const analyzeTikTok = async (req, res) => {
 
 const getAllInspirations = async (req, res) => {
   try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
     console.log("📚 Fetching all inspirations...");
-    const categories = await getAllCategories();
+    const categories = await getAllCategories(userId);
     
     // Transform the data organized by location
     const organizedByLocation = categories.map((category) => ({

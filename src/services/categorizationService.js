@@ -2,20 +2,25 @@ const admin = require("firebase-admin");
 const { getFirestore } = require("../config/database");
 const { extractLocations } = require("./locationExtractionService");
 
-const COLLECTION_NAME = "contentCategories";
+const COLLECTION_NAME = "inspirationsCollection";
 
 /**
  * Save or append content to location-based categories
  * @param {Array} contentData - Array of content items (from video or link summary)
  * @param {string} sourceType - "video" or "link"
  * @param {string} sourceUrl - Original URL of the content
+ * @param {string} userId - The user ID from Clerk
  * @returns {Promise<object>} - Result with saved locations and items
  */
-const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null) => {
+const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null, userId = null) => {
   try {
     if (!Array.isArray(contentData) || contentData.length === 0) {
       console.log("⚠️ No content data to categorize");
       return { locations: [], savedItems: [] };
+    }
+
+    if (!userId) {
+      throw new Error("UserId is required to save categorized content");
     }
 
     // Extract locations from content
@@ -40,9 +45,10 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null)
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(" ");
 
-      // Check if category exists
+      // Check if category exists for this user
       const categoryQuery = await categoriesRef
         .where("location", "==", normalizedLocation)
+        .where("userId", "==", userId)
         .limit(1)
         .get();
 
@@ -85,6 +91,7 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null)
         // Update or create category document
         await categoryDocRef.set(
           {
+            userId,
             location: normalizedLocation,
             items: updatedItems,
             itemCount: updatedItems.length,
@@ -124,10 +131,15 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null)
 /**
  * Get all items for a specific location category
  * @param {string} location - Location name
+ * @param {string} userId - The user ID from Clerk
  * @returns {Promise<Array>} - Array of items in that category
  */
-const getCategoryItems = async (location) => {
+const getCategoryItems = async (location, userId) => {
   try {
+    if (!userId) {
+      throw new Error("UserId is required to get category items");
+    }
+
     const db = getFirestore();
     const normalizedLocation = location
       .split(" ")
@@ -137,6 +149,7 @@ const getCategoryItems = async (location) => {
     const categoryQuery = await db
       .collection(COLLECTION_NAME)
       .where("location", "==", normalizedLocation)
+      .where("userId", "==", userId)
       .limit(1)
       .get();
 
@@ -153,13 +166,21 @@ const getCategoryItems = async (location) => {
 };
 
 /**
- * Get all categories
- * @returns {Promise<Array>} - Array of all category documents
+ * Get all categories for a user
+ * @param {string} userId - The user ID from Clerk
+ * @returns {Promise<Array>} - Array of all category documents for the user
  */
-const getAllCategories = async () => {
+const getAllCategories = async (userId) => {
   try {
+    if (!userId) {
+      throw new Error("UserId is required to get all categories");
+    }
+
     const db = getFirestore();
-    const categoriesSnapshot = await db.collection(COLLECTION_NAME).get();
+    const categoriesSnapshot = await db
+      .collection(COLLECTION_NAME)
+      .where("userId", "==", userId)
+      .get();
 
     return categoriesSnapshot.docs.map((doc) => ({
       id: doc.id,
