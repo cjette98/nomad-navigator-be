@@ -66,7 +66,7 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null)
         ...item,
         sourceType,
         sourceUrl,
-        addedAt: admin.firestore.FieldValue.serverTimestamp(),
+        addedAt: admin.firestore.Timestamp.now(),
       }));
 
       // Merge with existing items (avoid duplicates based on title + sourceUrl)

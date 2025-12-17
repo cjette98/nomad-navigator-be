@@ -28,13 +28,24 @@ const extractLocations = async (summaryData) => {
 Content:
 ${contentText}
 
-Return ONLY a valid JSON array of location names (strings), without any explanations or markdown.
+Return ONLY a valid JSON array of location names (strings) in the format "City/Place, Country", without any explanations or markdown.
 If no clear locations are found, return an empty array [].
 
-Examples of valid locations: "Paris", "Tokyo", "New York", "Bali", "Tuscany", "Eiffel Tower", "Shibuya District"
+IMPORTANT: Always format locations as "City/Place, Country" when possible. If the country is not mentioned but can be inferred from context, include it. If only a country is mentioned, use "Country" format.
+
+Examples of valid locations: 
+- "Paris, France"
+- "Tokyo, Japan"
+- "Albay, Philippines"
+- "New York, United States"
+- "Bali, Indonesia"
+- "Tuscany, Italy"
+- "Eiffel Tower, France"
+- "Shibuya District, Japan"
+
 Examples of invalid (not locations): "Restaurant", "Cafe", "Food", "Travel", "Lifestyle"
 
-Output format: ["Location1", "Location2", ...]`;
+Output format: ["Location1, Country1", "Location2, Country2", ...]`;
 
   try {
     const response = await openai.chat.completions.create({
