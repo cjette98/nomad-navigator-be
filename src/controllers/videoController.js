@@ -2,7 +2,7 @@ const { getTikTokVideo } = require("../services/tiktokService.js");
 const { uploadToGCS,deleteFromGCS } = require("../services/gcsService.js");
 const { analyzeVideo } = require("../services/videoAIService.js");
 const { generateAISummary } = require("../services/aiSummaryService.js");
-const { saveCategorizedContent, getAllCategories, deleteInspirationItem } = require("../services/categorizationService.js");
+const { saveCategorizedContent, getAllCategories, deleteInspirationItems } = require("../services/categorizationService.js");
 
 const analyzeTikTok = async (req, res) => {
   let gcsUri = null;
@@ -107,7 +107,7 @@ const getAllInspirations = async (req, res) => {
   }
 };
 
-const deleteInspiration = async (req, res) => {
+const deleteInspirations = async (req, res) => {
   try {
     const userId = req.userId;
     if (!userId) {
@@ -117,26 +117,35 @@ const deleteInspiration = async (req, res) => {
       });
     }
 
-    const { itemId } = req.params;
-    if (!itemId) {
+    const { itemIds } = req.body;
+    
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Item ID is required",
+        message: "itemIds array is required and must not be empty",
       });
     }
 
-    console.log(`🗑️ Deleting inspiration item: ${itemId}`);
-    const result = await deleteInspirationItem(itemId, userId);
+    // Validate that all items in the array are strings
+    if (!itemIds.every((id) => typeof id === "string" && id.trim().length > 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "All itemIds must be non-empty strings",
+      });
+    }
+
+    console.log(`🗑️ Deleting ${itemIds.length} inspiration item(s)...`);
+    const result = await deleteInspirationItems(itemIds, userId);
 
     return res.json({
       success: true,
-      message: "Inspiration item deleted successfully",
+      message: `Successfully deleted ${result.deletedCount} inspiration item(s)`,
       data: result,
     });
   } catch (err) {
-    console.error("❌ Error deleting inspiration:", err.message);
+    console.error("❌ Error deleting inspirations:", err.message);
     
-    if (err.message === "Inspiration item not found") {
+    if (err.message === "None of the inspiration items were found" || err.message.includes("not found")) {
       return res.status(404).json({
         success: false,
         message: err.message,
@@ -145,9 +154,9 @@ const deleteInspiration = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: err.message || "Failed to delete inspiration item",
+      message: err.message || "Failed to delete inspiration items",
     });
   }
 };
 
-module.exports = { analyzeTikTok, getAllInspirations, deleteInspiration };
+module.exports = { analyzeTikTok, getAllInspirations, deleteInspirations };

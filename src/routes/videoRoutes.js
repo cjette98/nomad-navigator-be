@@ -1,5 +1,5 @@
 const express = require("express");
-const { analyzeTikTok, getAllInspirations, deleteInspiration } = require("../controllers/videoController.js");
+const { analyzeTikTok, getAllInspirations, deleteInspirations } = require("../controllers/videoController.js");
 
 const router = express.Router();
 
@@ -129,24 +129,31 @@ router.get("/", getAllInspirations);
 
 /**
  * @swagger
- * /api/inspiration/{itemId}:
+ * /api/inspiration:
  *   delete:
- *     summary: Delete an inspiration item by ID
- *     description: Deletes a specific inspiration item from the user's inspiration collection
+ *     summary: Delete inspiration items in bulk
+ *     description: Deletes multiple inspiration items from the user's inspiration collection by providing an array of item IDs
  *     tags: [Inspiration]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: itemId
- *         required: true
- *         schema:
- *           type: string
- *         description: The ID of the inspiration item to delete
- *         example: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - itemIds
+ *             properties:
+ *               itemIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of inspiration item IDs to delete
+ *                 example: ["a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6", "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7"]
  *     responses:
  *       200:
- *         description: Successfully deleted the inspiration item
+ *         description: Successfully deleted the inspiration items
  *         content:
  *           application/json:
  *             schema:
@@ -157,24 +164,37 @@ router.get("/", getAllInspirations);
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Inspiration item deleted successfully"
+ *                   example: "Successfully deleted 2 inspiration item(s)"
  *                 data:
  *                   type: object
  *                   properties:
- *                     deletedItem:
- *                       type: object
- *                       description: The deleted inspiration item
- *                     updatedCategory:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                         location:
- *                           type: string
- *                         itemCount:
- *                           type: number
+ *                     deletedItems:
+ *                       type: array
+ *                       description: Array of deleted inspiration items
+ *                       items:
+ *                         type: object
+ *                     deletedCount:
+ *                       type: number
+ *                       example: 2
+ *                     updatedCategories:
+ *                       type: array
+ *                       description: Array of updated categories
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           location:
+ *                             type: string
+ *                           itemCount:
+ *                             type: number
+ *                     notFoundIds:
+ *                       type: array
+ *                       description: Array of item IDs that were not found (optional, only present if some IDs were not found)
+ *                       items:
+ *                         type: string
  *       400:
- *         description: Bad request - missing item ID
+ *         description: Bad request - missing or invalid itemIds array
  *         content:
  *           application/json:
  *             schema:
@@ -186,7 +206,7 @@ router.get("/", getAllInspirations);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *       404:
- *         description: Inspiration item not found
+ *         description: None of the inspiration items were found
  *         content:
  *           application/json:
  *             schema:
@@ -198,6 +218,6 @@ router.get("/", getAllInspirations);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete("/:itemId", deleteInspiration);
+router.delete("/", deleteInspirations);
 
 module.exports = router;

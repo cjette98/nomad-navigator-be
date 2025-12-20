@@ -224,73 +224,84 @@ const getAllCategories = async (userId) => {
 };
 
 /**
- * Delete an inspiration item by ID
- * @param {string} itemId - The ID of the inspiration item to delete
+ * Delete inspiration items by IDs (bulk deletion)
+ * @param {Array<string>} itemIds - Array of IDs of inspiration items to delete
  * @param {string} userId - The user ID from Clerk
- * @returns {Promise<object>} - Result with deleted item info and updated location
+ * @returns {Promise<object>} - Result with deleted items info and updated categories
  */
-const deleteInspirationItem = async (itemId, userId) => {
+const deleteInspirationItems = async (itemIds, userId) => {
   try {
-    if (!itemId) {
-      throw new Error("Item ID is required to delete inspiration item");
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      throw new Error("Item IDs array is required and must not be empty");
     }
 
     if (!userId) {
-      throw new Error("UserId is required to delete inspiration item");
+      throw new Error("UserId is required to delete inspiration items");
     }
 
     const db = getFirestore();
     const categoriesRef = db.collection(COLLECTION_NAME);
 
-    // Find the category that contains this item
+    // Find all categories for this user
     const allUserCategories = await categoriesRef
       .where("userId", "==", userId)
       .get();
 
-    let deletedItem = null;
-    let updatedCategory = null;
+    const deletedItems = [];
+    const updatedCategories = [];
+    const notFoundIds = [];
+    const itemIdSet = new Set(itemIds); // For efficient lookup
 
+    // Process each category
     for (const doc of allUserCategories.docs) {
       const categoryData = doc.data();
       const items = categoryData.items || [];
       
-      // Find the item with matching ID
-      const itemIndex = items.findIndex((item) => item.id === itemId);
+      // Find items in this category that match any of the IDs to delete
+      const itemsToDelete = items.filter((item) => item.id && itemIdSet.has(item.id));
+      const remainingItems = items.filter((item) => !item.id || !itemIdSet.has(item.id));
       
-      if (itemIndex !== -1) {
-        deletedItem = items[itemIndex];
-        
-        // Remove the item from the array
-        const updatedItems = items.filter((item) => item.id !== itemId);
+      if (itemsToDelete.length > 0) {
+        // Add to deleted items list
+        deletedItems.push(...itemsToDelete);
         
         // Update the category document
         await doc.ref.update({
-          items: updatedItems,
-          itemCount: updatedItems.length,
+          items: remainingItems,
+          itemCount: remainingItems.length,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
-        updatedCategory = {
+        updatedCategories.push({
           id: doc.id,
           location: categoryData.location,
-          itemCount: updatedItems.length,
-        };
+          itemCount: remainingItems.length,
+        });
 
-        console.log(`✅ Deleted inspiration item ${itemId} from location: ${categoryData.location}`);
-        break;
+        console.log(`✅ Deleted ${itemsToDelete.length} inspiration item(s) from location: ${categoryData.location}`);
       }
     }
 
-    if (!deletedItem) {
-      throw new Error("Inspiration item not found");
+    // Check which IDs were not found
+    const deletedIds = new Set(deletedItems.map((item) => item.id));
+    itemIds.forEach((id) => {
+      if (!deletedIds.has(id)) {
+        notFoundIds.push(id);
+      }
+    });
+
+    if (deletedItems.length === 0) {
+      throw new Error("None of the inspiration items were found");
     }
 
     return {
-      deletedItem,
-      updatedCategory,
+      deletedItems,
+      deletedCount: deletedItems.length,
+      updatedCategories,
+      notFoundIds: notFoundIds.length > 0 ? notFoundIds : undefined,
     };
   } catch (error) {
-    console.error("❌ Error deleting inspiration item:", error);
+    console.error("❌ Error deleting inspiration items:", error);
     throw error;
   }
 };
@@ -299,5 +310,5 @@ module.exports = {
   saveCategorizedContent,
   getCategoryItems,
   getAllCategories,
-  deleteInspirationItem,
+  deleteInspirationItems,
 };
