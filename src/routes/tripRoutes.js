@@ -5,6 +5,9 @@ const {
   getTrip,
   updateActivities,
   addActivities,
+  addInspirationsToTrip,
+  updateActivityById,
+  deleteActivityById,
 } = require("../controllers/tripController");
 
 const router = express.Router();
@@ -339,6 +342,284 @@ router.put("/trips/:tripId/days/:dayNumber/activities", updateActivities);
  *               $ref: '#/components/schemas/Error'
  */
 router.post("/trips/:tripId/days/:dayNumber/activities", addActivities);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/inspirations:
+ *   post:
+ *     summary: Add inspiration items to a specific day
+ *     description: Adds selected inspiration items to a specific day in the trip itinerary. Inspiration items are formatted into activity format and appended to existing activities for that day.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - itemIds
+ *             properties:
+ *               itemIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of inspiration item IDs to add to the trip
+ *                 example: ["a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6", "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7"]
+ *     responses:
+ *       200:
+ *         description: Inspiration items added successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully added 2 inspiration item(s) to day 1"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid parameters or empty itemIds array
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trip does not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Trip not found or no inspiration items found with provided IDs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/activities/{activityId}:
+ *   put:
+ *     summary: Update a specific activity in a trip day
+ *     description: Updates a specific activity by its ID in a trip day. Only provided fields will be updated.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *       - in: path
+ *         name: activityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the activity
+ *         example: "activity123"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Updated Activity Name"
+ *               time:
+ *                 type: string
+ *                 example: "2:00 PM"
+ *               description:
+ *                 type: string
+ *                 example: "Updated description"
+ *               type:
+ *                 type: string
+ *                 enum: [attraction, restaurant, activity, transport, accommodation, other]
+ *                 example: "restaurant"
+ *               location:
+ *                 type: string
+ *                 example: "Updated Location"
+ *           example:
+ *             name: "Updated Breakfast at Cafe"
+ *             time: "9:30 AM"
+ *             description: "Updated description of the activity"
+ *     responses:
+ *       200:
+ *         description: Activity updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Activity updated successfully for day 1"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid parameters or missing activity data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trip does not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Trip or activity not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.put("/trips/:tripId/days/:dayNumber/activities/:activityId", updateActivityById);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/activities/{activityId}:
+ *   delete:
+ *     summary: Delete a specific activity from a trip day
+ *     description: Deletes a specific activity by its ID from a trip day.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *       - in: path
+ *         name: activityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the activity
+ *         example: "activity123"
+ *     responses:
+ *       200:
+ *         description: Activity deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Activity deleted successfully from day 1"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trip does not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Trip or activity not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteActivityById);
 
 module.exports = router;
 

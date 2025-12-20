@@ -306,9 +306,112 @@ const deleteInspirationItems = async (itemIds, userId) => {
   }
 };
 
+/**
+ * Get inspiration items by their IDs
+ * @param {Array<string>} itemIds - Array of inspiration item IDs
+ * @param {string} userId - The user ID from Clerk
+ * @returns {Promise<Array>} - Array of inspiration items with their location
+ */
+const getInspirationItemsByIds = async (itemIds, userId) => {
+  try {
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      throw new Error("Item IDs array is required and must not be empty");
+    }
+
+    if (!userId) {
+      throw new Error("UserId is required to get inspiration items");
+    }
+
+    const db = getFirestore();
+    const categoriesRef = db.collection(COLLECTION_NAME);
+
+    // Find all categories for this user
+    const allUserCategories = await categoriesRef
+      .where("userId", "==", userId)
+      .get();
+
+    const itemIdSet = new Set(itemIds);
+    const foundItems = [];
+
+    // Search through all categories for matching items
+    for (const doc of allUserCategories.docs) {
+      const categoryData = doc.data();
+      const items = categoryData.items || [];
+      const categoryLocation = categoryData.location || "";
+
+      // Find items that match the requested IDs
+      items.forEach((item) => {
+        if (item.id && itemIdSet.has(item.id)) {
+          foundItems.push({
+            ...item,
+            categoryLocation, // Add the location from the category
+          });
+        }
+      });
+    }
+
+    // Check if all IDs were found
+    const foundIds = new Set(foundItems.map((item) => item.id));
+    const notFoundIds = itemIds.filter((id) => !foundIds.has(id));
+
+    if (notFoundIds.length > 0) {
+      console.warn(`⚠️ Some inspiration item IDs were not found: ${notFoundIds.join(", ")}`);
+    }
+
+    return foundItems;
+  } catch (error) {
+    console.error("❌ Error getting inspiration items by IDs:", error);
+    throw error;
+  }
+};
+
+/**
+ * Map inspiration category to activity type
+ * @param {string} category - Inspiration category
+ * @returns {string} - Activity type
+ */
+const mapCategoryToActivityType = (category) => {
+  const categoryLower = (category || "").toLowerCase();
+  
+  if (categoryLower.includes("restaurant") || categoryLower.includes("cafe") || categoryLower.includes("food")) {
+    return "restaurant";
+  }
+  if (categoryLower.includes("lodging") || categoryLower.includes("accommodation")) {
+    return "accommodation";
+  }
+  if (categoryLower.includes("sightseeing") || categoryLower.includes("travel") || categoryLower.includes("attraction")) {
+    return "attraction";
+  }
+  if (categoryLower.includes("transport") || categoryLower.includes("logistics")) {
+    return "transport";
+  }
+  if (categoryLower.includes("shopping")) {
+    return "activity";
+  }
+  
+  return "activity"; // Default to "activity" for other categories
+};
+
+/**
+ * Format inspiration items into trip activity format
+ * @param {Array} inspirationItems - Array of inspiration items with categoryLocation
+ * @returns {Array} - Array of formatted activity objects
+ */
+const formatInspirationItemsToActivities = (inspirationItems) => {
+  return inspirationItems.map((item) => ({
+    name: item.title || "Untitled Activity",
+    description: item.description || "",
+    location: item.categoryLocation || "", // Use the location from the category
+    type: mapCategoryToActivityType(item.category),
+    time: "", // Leave time empty, user can set it later or use default scheduling
+  }));
+};
+
 module.exports = {
   saveCategorizedContent,
   getCategoryItems,
   getAllCategories,
   deleteInspirationItems,
+  getInspirationItemsByIds,
+  formatInspirationItemsToActivities,
 };
