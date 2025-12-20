@@ -1,5 +1,5 @@
 const express = require("express");
-const { analyzeTikTok, getAllInspirations } = require("../controllers/videoController.js");
+const { analyzeTikTok, getAllInspirations, deleteInspiration } = require("../controllers/videoController.js");
 
 const router = express.Router();
 
@@ -126,5 +126,78 @@ router.post("/analyze-tiktok", analyzeTikTok);
  *               $ref: '#/components/schemas/Error'
  */
 router.get("/", getAllInspirations);
+
+/**
+ * @swagger
+ * /api/inspiration/{itemId}:
+ *   delete:
+ *     summary: Delete an inspiration item by ID
+ *     description: Deletes a specific inspiration item from the user's inspiration collection
+ *     tags: [Inspiration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: itemId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the inspiration item to delete
+ *         example: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+ *     responses:
+ *       200:
+ *         description: Successfully deleted the inspiration item
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Inspiration item deleted successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     deletedItem:
+ *                       type: object
+ *                       description: The deleted inspiration item
+ *                     updatedCategory:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         location:
+ *                           type: string
+ *                         itemCount:
+ *                           type: number
+ *       400:
+ *         description: Bad request - missing item ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Inspiration item not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.delete("/:itemId", deleteInspiration);
 
 module.exports = router;

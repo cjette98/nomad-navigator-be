@@ -2,7 +2,7 @@ const { getTikTokVideo } = require("../services/tiktokService.js");
 const { uploadToGCS,deleteFromGCS } = require("../services/gcsService.js");
 const { analyzeVideo } = require("../services/videoAIService.js");
 const { generateAISummary } = require("../services/aiSummaryService.js");
-const { saveCategorizedContent, getAllCategories } = require("../services/categorizationService.js");
+const { saveCategorizedContent, getAllCategories, deleteInspirationItem } = require("../services/categorizationService.js");
 
 const analyzeTikTok = async (req, res) => {
   let gcsUri = null;
@@ -107,4 +107,47 @@ const getAllInspirations = async (req, res) => {
   }
 };
 
-module.exports = { analyzeTikTok, getAllInspirations };
+const deleteInspiration = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    const { itemId } = req.params;
+    if (!itemId) {
+      return res.status(400).json({
+        success: false,
+        message: "Item ID is required",
+      });
+    }
+
+    console.log(`🗑️ Deleting inspiration item: ${itemId}`);
+    const result = await deleteInspirationItem(itemId, userId);
+
+    return res.json({
+      success: true,
+      message: "Inspiration item deleted successfully",
+      data: result,
+    });
+  } catch (err) {
+    console.error("❌ Error deleting inspiration:", err.message);
+    
+    if (err.message === "Inspiration item not found") {
+      return res.status(404).json({
+        success: false,
+        message: err.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to delete inspiration item",
+    });
+  }
+};
+
+module.exports = { analyzeTikTok, getAllInspirations, deleteInspiration };

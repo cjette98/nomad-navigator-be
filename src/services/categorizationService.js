@@ -1,8 +1,17 @@
 const admin = require("firebase-admin");
 const { getFirestore } = require("../config/database");
 const { extractLocations } = require("./locationExtractionService");
+const crypto = require("crypto");
 
 const COLLECTION_NAME = "inspirationsCollection";
+
+/**
+ * Generate a unique ID for an inspiration item
+ * @returns {string} - Unique ID string
+ */
+const generateItemId = () => {
+  return crypto.randomBytes(16).toString("hex");
+};
 
 /**
  * Save or append content to location-based categories
@@ -71,9 +80,10 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
       console.log(`🆕 Creating new category: ${normalizedLocation}`);
     }
 
-    // Add metadata to each content item
+    // Add metadata and unique ID to each content item
     const enrichedItems = contentData.map((item) => ({
       ...item,
+      id: generateItemId(), // Add unique ID to each item
       sourceType,
       sourceUrl,
       addedAt: admin.firestore.Timestamp.now(),
@@ -213,8 +223,81 @@ const getAllCategories = async (userId) => {
   }
 };
 
+/**
+ * Delete an inspiration item by ID
+ * @param {string} itemId - The ID of the inspiration item to delete
+ * @param {string} userId - The user ID from Clerk
+ * @returns {Promise<object>} - Result with deleted item info and updated location
+ */
+const deleteInspirationItem = async (itemId, userId) => {
+  try {
+    if (!itemId) {
+      throw new Error("Item ID is required to delete inspiration item");
+    }
+
+    if (!userId) {
+      throw new Error("UserId is required to delete inspiration item");
+    }
+
+    const db = getFirestore();
+    const categoriesRef = db.collection(COLLECTION_NAME);
+
+    // Find the category that contains this item
+    const allUserCategories = await categoriesRef
+      .where("userId", "==", userId)
+      .get();
+
+    let deletedItem = null;
+    let updatedCategory = null;
+
+    for (const doc of allUserCategories.docs) {
+      const categoryData = doc.data();
+      const items = categoryData.items || [];
+      
+      // Find the item with matching ID
+      const itemIndex = items.findIndex((item) => item.id === itemId);
+      
+      if (itemIndex !== -1) {
+        deletedItem = items[itemIndex];
+        
+        // Remove the item from the array
+        const updatedItems = items.filter((item) => item.id !== itemId);
+        
+        // Update the category document
+        await doc.ref.update({
+          items: updatedItems,
+          itemCount: updatedItems.length,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        updatedCategory = {
+          id: doc.id,
+          location: categoryData.location,
+          itemCount: updatedItems.length,
+        };
+
+        console.log(`✅ Deleted inspiration item ${itemId} from location: ${categoryData.location}`);
+        break;
+      }
+    }
+
+    if (!deletedItem) {
+      throw new Error("Inspiration item not found");
+    }
+
+    return {
+      deletedItem,
+      updatedCategory,
+    };
+  } catch (error) {
+    console.error("❌ Error deleting inspiration item:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   saveCategorizedContent,
   getCategoryItems,
   getAllCategories,
+  deleteInspirationItem,
 };
