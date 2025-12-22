@@ -14,6 +14,114 @@ const generateItemId = () => {
 };
 
 /**
+ * Normalize location name for matching (removes common words and standardizes format)
+ * @param {string} location - Location name
+ * @returns {string} - Normalized location for comparison
+ */
+const normalizeLocationForMatching = (location) => {
+  if (!location) return "";
+  
+  // Convert to lowercase for comparison
+  let normalized = location.toLowerCase().trim();
+  
+  // Remove common location descriptors that might cause duplicates
+  const descriptorsToRemove = [
+    // Generic
+    "island", "isl",
+    "city",
+    "town",
+    "village", "vill",
+    "province", "prov",
+    "region", "reg",
+    "municipality", "mun",
+    "district", "dist",
+    "area",
+    "zone",
+    "capital", "island",
+    "isle",
+    "archipelago",
+    "peninsula",
+    "coast",
+    "bay",
+    "harbor",
+    "harbour",
+    "mount",
+    "mountain",
+    "lake",
+    "river",
+  
+    // Philippines-specific
+    "barangay", "brgy",
+    "poblacion",
+    "sitio",
+    "compound",
+  
+    // International / common
+    "state",
+    "county",
+    "prefecture", "pref",
+    "governorate",
+    "territory",
+    "metropolitan", "metro",
+  ];
+  
+  
+  // Split by comma to handle "Location, Country" format
+  const parts = normalized.split(",").map(part => part.trim());
+  
+  if (parts.length > 1) {
+    // Has country/region part
+    const mainLocation = parts[0];
+    const countryPart = parts.slice(1).join(", ");
+    
+    // Remove descriptors from main location
+    let cleanedMain = mainLocation;
+    descriptorsToRemove.forEach(descriptor => {
+      const regex = new RegExp(`\\b${descriptor}\\b`, "gi");
+      cleanedMain = cleanedMain.replace(regex, "").trim();
+    });
+    
+    // Remove extra spaces
+    cleanedMain = cleanedMain.replace(/\s+/g, " ").trim();
+    
+    return `${cleanedMain}, ${countryPart}`;
+  } else {
+    // No comma, just clean the location
+    let cleaned = normalized;
+    descriptorsToRemove.forEach(descriptor => {
+      const regex = new RegExp(`\\b${descriptor}\\b`, "gi");
+      cleaned = cleaned.replace(regex, "").trim();
+    });
+    cleaned = cleaned.replace(/\s+/g, " ").trim();
+    return cleaned;
+  }
+};
+
+/**
+ * Check if two locations refer to the same place
+ * @param {string} location1 - First location
+ * @param {string} location2 - Second location
+ * @returns {boolean} - True if locations match
+ */
+const areLocationsMatching = (location1, location2) => {
+  const normalized1 = normalizeLocationForMatching(location1);
+  const normalized2 = normalizeLocationForMatching(location2);
+  
+  // Exact match after normalization
+  if (normalized1 === normalized2) return true;
+  
+  // Check if one location contains the other (e.g., "Siargao" vs "Siargao, Philippines")
+  const longer = normalized1.length > normalized2.length ? normalized1 : normalized2;
+  const shorter = normalized1.length > normalized2.length ? normalized2 : normalized1;
+  
+  if (longer.includes(shorter) && shorter.length > 3) {
+    return true;
+  }
+  
+  return false;
+};
+
+/**
  * Save or append content to location-based categories
  * @param {Array} contentData - Array of content items (from video or link summary)
  * @param {string} sourceType - "video" or "link"
@@ -52,14 +160,14 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
 
     // Process only the primary location
     const location = primaryLocation;
-    // Normalize location name (capitalize first letter, lowercase rest)
+    // Normalize location name (capitalize first letter, lowercase rest) for storage
     const normalizedLocation = location
       .split(" ")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
 
-    // Check if category exists for this user
-    const categoryQuery = await categoriesRef
+    // First, try exact match
+    let categoryQuery = await categoriesRef
       .where("location", "==", normalizedLocation)
       .where("userId", "==", userId)
       .limit(1)
@@ -67,17 +175,49 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
 
     let categoryDocRef;
     let existingItems = [];
+    let existingLocation = normalizedLocation;
+    let matchedCategory = null;
 
     if (!categoryQuery.empty) {
-      // Category exists - get existing document
+      // Exact match found - use existing category
       categoryDocRef = categoryQuery.docs[0].ref;
       const existingData = categoryQuery.docs[0].data();
       existingItems = existingData.items || [];
-      console.log(`✅ Found existing category: ${normalizedLocation}`);
+      existingLocation = existingData.location || normalizedLocation;
+      console.log(`✅ Found existing category (exact match): ${existingLocation}`);
     } else {
-      // Create new category
-      categoryDocRef = categoriesRef.doc();
-      console.log(`🆕 Creating new category: ${normalizedLocation}`);
+      // No exact match - check for similar locations
+      console.log(`🔍 No exact match found for "${normalizedLocation}", checking for similar locations...`);
+      
+      // Get all categories for this user to check for similar locations
+      allUserCategoriesSnapshot = await categoriesRef
+        .where("userId", "==", userId)
+        .get();
+      
+      allUserCategoriesSnapshot.forEach((doc) => {
+        const categoryData = doc.data();
+        const existingCatLocation = categoryData.location || "";
+        
+        if (areLocationsMatching(existingCatLocation, normalizedLocation)) {
+          matchedCategory = {
+            ref: doc.ref,
+            data: categoryData,
+            location: existingCatLocation,
+          };
+        }
+      });
+
+      if (matchedCategory) {
+        // Similar location found - use existing category
+        categoryDocRef = matchedCategory.ref;
+        existingItems = matchedCategory.data.items || [];
+        existingLocation = matchedCategory.location;
+        console.log(`✅ Found existing category (similar match): "${existingLocation}" (matched with "${normalizedLocation}")`);
+      } else {
+        // No similar match - create new category
+        categoryDocRef = categoriesRef.doc();
+        console.log(`🆕 Creating new category: ${normalizedLocation}`);
+      }
     }
 
     // Add metadata and unique ID to each content item
@@ -91,9 +231,13 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
 
     // Merge with existing items (avoid duplicates based on title + sourceUrl)
     // Also check if this sourceUrl already exists in ANY location for this user to prevent cross-location duplicates
-    const allUserCategories = await categoriesRef
-      .where("userId", "==", userId)
-      .get();
+    // Reuse allUserCategoriesSnapshot if we already fetched it, otherwise fetch it
+    let allUserCategories = allUserCategoriesSnapshot;
+    if (!allUserCategories) {
+      allUserCategories = await categoriesRef
+        .where("userId", "==", userId)
+        .get();
+    }
     
     const allExistingItems = [];
     allUserCategories.forEach((doc) => {
@@ -124,14 +268,17 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
       savedItems.push(...newItems);
 
       // Update or create category document
+      // Use existingLocation if we found a match, otherwise use normalizedLocation
+      const locationToUse = existingLocation || normalizedLocation;
+      
       await categoryDocRef.set(
         {
           userId,
-          location: normalizedLocation,
+          location: locationToUse,
           items: updatedItems,
           itemCount: updatedItems.length,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          ...(categoryQuery.empty && {
+          ...((categoryQuery.empty && !matchedCategory) && {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           }),
         },
@@ -139,7 +286,7 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
       );
 
       console.log(
-        `✅ Saved ${newItems.length} item(s) to category: ${normalizedLocation}`
+        `✅ Saved ${newItems.length} item(s) to category: ${locationToUse}`
       );
     } else {
       console.log(
@@ -148,7 +295,7 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
     }
 
     return {
-      locations: [normalizedLocation],
+      locations: [existingLocation || normalizedLocation],
       savedItems,
     };
   } catch (error) {
