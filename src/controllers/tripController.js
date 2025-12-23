@@ -1,6 +1,8 @@
 const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity } = require("../services/tripService");
 const { generateItinerary } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
+const { generateTripCoverPhoto } = require("../services/imageGenerationService");
+const { uploadImageToGCS } = require("../services/gcsService");
 
 /**
  * Create a new trip with generated itinerary
@@ -31,8 +33,28 @@ const createTrip = async (req, res) => {
     const itinerary = await generateItinerary(selectedTrip);
     console.log("✅ Itinerary generated successfully");
 
-    // Save trip with itinerary to Firestore
-    const savedTrip = await saveTrip(userId, selectedTrip, itinerary);
+    // Generate and save trip cover photo
+    let coverPhotoUrl = null;
+    try {
+      const destination = selectedTrip.destination || selectedTrip.name || "travel destination";
+      console.log("🖼️ Generating cover photo for trip...");
+      
+      // Generate the image
+      const imageBuffer = await generateTripCoverPhoto(destination);
+      
+      // Upload to GCS
+      const timestamp = Date.now();
+      const filename = `trip-covers/${userId}/${timestamp}_cover.png`;
+      coverPhotoUrl = await uploadImageToGCS(imageBuffer, filename);
+      
+      console.log("✅ Cover photo generated and saved successfully");
+    } catch (coverPhotoError) {
+      console.error("⚠️ Error generating cover photo (continuing without it):", coverPhotoError.message);
+      // Continue without cover photo if generation fails
+    }
+
+    // Save trip with itinerary and cover photo to Firestore
+    const savedTrip = await saveTrip(userId, selectedTrip, itinerary, coverPhotoUrl);
 
     return res.status(201).json({
       success: true,

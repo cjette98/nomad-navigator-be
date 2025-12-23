@@ -119,3 +119,17 @@ dist
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
 .vercel
+
+# Credentials and API keys
+*-firebase-adminsdk-*.json
+*-service-account*.json
+google-service-key*.json
+google-service-key*.txt
+*credentials*.json
+*credentials*.txt
+*service-key*.json
+*service-key*.txt
+*.pem
+*.key
+*.p12
+*.pfx

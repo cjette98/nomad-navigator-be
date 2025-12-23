@@ -31,9 +31,10 @@ const ensureActivitiesHaveIds = (activities) => {
  * @param {string} userId - The user ID from Clerk
  * @param {object} selectedTrip - The selected trip suggestion data
  * @param {object} itinerary - The generated 3-day itinerary
+ * @param {string|null} coverPhotoUrl - The GCS URL of the generated cover photo (optional)
  * @returns {Promise<object>} - The saved trip document
  */
-const saveTrip = async (userId, selectedTrip, itinerary) => {
+const saveTrip = async (userId, selectedTrip, itinerary, coverPhotoUrl = null) => {
   try {
     const db = getFirestore();
     const tripsRef = db.collection(COLLECTION_NAME);
@@ -57,6 +58,11 @@ const saveTrip = async (userId, selectedTrip, itinerary) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
+
+    // Add cover photo URL if provided
+    if (coverPhotoUrl) {
+      tripData.coverPhotoUrl = coverPhotoUrl;
+    }
 
     const docRef = await tripsRef.add(tripData);
 

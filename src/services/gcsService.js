@@ -70,4 +70,45 @@ const uploadToGCS = async (downloadUrl, filename) => {
   return `gs://${process.env.GCS_BUCKET}/${filename}`;
 };
 
-module.exports = { uploadToGCS, deleteFromGCS };
+/**
+ * Upload an image buffer to Google Cloud Storage
+ * @param {Buffer} imageBuffer - The image buffer to upload
+ * @param {string} filename - The filename to use in GCS
+ * @returns {Promise<string>} - The GCS URI (gs://bucket/filename)
+ */
+const uploadImageToGCS = async (imageBuffer, filename) => {
+  try {
+    const bucket = storage.bucket(process.env.GCS_BUCKET);
+    const file = bucket.file(filename);
+
+    console.log(`⬆️ Uploading image to GCS: ${filename}`);
+
+    await new Promise((resolve, reject) => {
+      const gcsStream = file.createWriteStream({
+        resumable: false,
+        gzip: false,
+        metadata: { contentType: "image/png" },
+      });
+
+      gcsStream
+        .on("finish", () => {
+          console.log(`✅ Image upload complete: ${filename}`);
+          resolve();
+        })
+        .on("error", (err) => {
+          console.error("❌ Image upload error:", err.message);
+          reject(err);
+        });
+
+      // Write the buffer to the stream
+      gcsStream.end(imageBuffer);
+    });
+
+    return `gs://${process.env.GCS_BUCKET}/${filename}`;
+  } catch (error) {
+    console.error("Error uploading image to GCS:", error);
+    throw error;
+  }
+};
+
+module.exports = { uploadToGCS, deleteFromGCS, uploadImageToGCS };
