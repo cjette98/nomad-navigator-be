@@ -1,6 +1,6 @@
-# Nomad Navigator Backend
+# Aitineri Backend
 
-A Node.js/Express backend API for the Nomad Navigator travel planning application. This backend provides APIs for trip suggestions, itinerary generation, travel preferences management, TikTok video analysis, link summarization, and Gmail booking confirmation extraction.
+A Node.js/Express backend API for the Aitineri. This backend provides APIs for trip suggestions, itinerary generation, travel preferences management, TikTok video analysis, link summarization, and Gmail booking confirmation extraction.
 
 ## Table of Contents
 
