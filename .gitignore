@@ -133,3 +133,4 @@ google-service-key*.txt
 *.key
 *.p12
 *.pfx
+.env*.local
