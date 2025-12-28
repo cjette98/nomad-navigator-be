@@ -15,7 +15,7 @@ You are a data extraction assistant that reads booking-related content and outpu
 The JSON structure must adapt to the booking category.
 
 You must:
-1. Detect the category (hotel, flight, car, restaurant, or unknown).
+1. Detect the category (hotel, flight, car, restaurant, event, ticket, or unknown).
 2. Return a JSON object specific to that category, with only the relevant fields.
 3. If data is missing, set the value to null.
 4. Return ONLY valid JSON (no explanations or text).
@@ -73,6 +73,39 @@ Use the following templates:
   "reservationDate": string | null,
   "reservationTime": string | null,
   "numberOfGuests": number | null,
+  "totalAmount": string | null,
+  "email": string | null
+}
+
+🎉 Events Booking:
+{
+  "category": "event",
+  "bookingId": string | null,
+  "customerName": string | null,
+  "eventName": string | null,
+  "eventDate": string | null,
+  "eventTime": string | null,
+  "venue": string | null,
+  "location": string | null,
+  "numberOfTickets": number | null,
+  "totalAmount": string | null,
+  "email": string | null
+}
+
+🎫 Tickets Booking (concerts, shows, sports, theater, etc.):
+{
+  "category": "ticket",
+  "bookingId": string | null,
+  "customerName": string | null,
+  "ticketType": string | null,
+  "eventName": string | null,
+  "performer": string | null,
+  "venue": string | null,
+  "eventDate": string | null,
+  "eventTime": string | null,
+  "numberOfTickets": number | null,
+  "seat": string | null,
+  "section": string | null,
   "totalAmount": string | null,
   "email": string | null
 }
@@ -141,7 +174,7 @@ You are a data extraction assistant that reads booking-related images (screensho
 The JSON structure must adapt to the booking category.
 
 You must:
-1. Detect the category (hotel, flight, car, restaurant, or unknown).
+1. Detect the category (hotel, flight, car, restaurant, event, ticket, or unknown).
 2. Return a JSON object specific to that category, with only the relevant fields.
 3. If data is missing, set the value to null.
 4. Return ONLY valid JSON (no explanations or text).
@@ -199,6 +232,39 @@ Use the following templates:
   "reservationDate": string | null,
   "reservationTime": string | null,
   "numberOfGuests": number | null,
+  "totalAmount": string | null,
+  "email": string | null
+}
+
+🎉 Events Booking:
+{
+  "category": "event",
+  "bookingId": string | null,
+  "customerName": string | null,
+  "eventName": string | null,
+  "eventDate": string | null,
+  "eventTime": string | null,
+  "venue": string | null,
+  "location": string | null,
+  "numberOfTickets": number | null,
+  "totalAmount": string | null,
+  "email": string | null
+}
+
+🎫 Tickets Booking (concerts, shows, sports, theater, etc.):
+{
+  "category": "ticket",
+  "bookingId": string | null,
+  "customerName": string | null,
+  "ticketType": string | null,
+  "eventName": string | null,
+  "performer": string | null,
+  "venue": string | null,
+  "eventDate": string | null,
+  "eventTime": string | null,
+  "numberOfTickets": number | null,
+  "seat": string | null,
+  "section": string | null,
   "totalAmount": string | null,
   "email": string | null
 }
