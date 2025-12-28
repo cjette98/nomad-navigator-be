@@ -5,6 +5,15 @@ const {
   extractBookingData,
   extractBookingDataFromImage,
 } = require("../services/bookingExtractionService");
+const {
+  saveConfirmation,
+  saveConfirmations,
+  getUserConfirmations,
+  getTripConfirmations,
+  linkConfirmationToTrip,
+  linkConfirmationsToTrip,
+  getUnlinkedConfirmations,
+} = require("../services/travelConfirmationService");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -43,10 +52,19 @@ function extractPlainText(payload) {
  */
 const syncGmail = async (req, res) => {
   try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
     // Get OAuth tokens from request (should be stored per user in production)
     // For now, we'll use the existing oauth2Client setup
     // In production, you'd retrieve tokens from database based on userId
-    const { accessToken, refreshToken } = req.body;
+    const { accessToken, refreshToken, tripId } = req.body;
 
     if (!accessToken) {
       return res.status(400).json({
@@ -103,6 +121,19 @@ const syncGmail = async (req, res) => {
       }
     }
 
+    // Save all extracted confirmations to Firestore
+    let savedConfirmations = [];
+    if (results.length > 0) {
+      try {
+        const confirmationsData = results.map((result) => result.structuredData);
+        savedConfirmations = await saveConfirmations(userId, confirmationsData, tripId || null);
+        console.log(`✅ Saved ${savedConfirmations.length} confirmations to Firestore`);
+      } catch (saveError) {
+        console.error("Error saving confirmations to Firestore:", saveError);
+        // Continue even if save fails, still return the extracted data
+      }
+    }
+
     // Group by category
     const grouped = results.reduce((acc, { structuredData }) => {
       const category = structuredData.category || "unknown";
@@ -117,6 +148,10 @@ const syncGmail = async (req, res) => {
         total: results.length,
         grouped,
         results,
+        savedConfirmations: savedConfirmations.map((conf) => ({
+          id: conf.id,
+          tripId: conf.tripId,
+        })),
       },
     });
   } catch (error) {
@@ -135,6 +170,15 @@ const syncGmail = async (req, res) => {
  */
 const uploadPDF = async (req, res) => {
   try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -164,9 +208,26 @@ const uploadPDF = async (req, res) => {
     // Extract booking data using AI
     const structuredData = await extractBookingData(pdfText);
 
+    // Save confirmation to Firestore
+    let savedConfirmation = null;
+    const { tripId } = req.body;
+    try {
+      savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
+      console.log("✅ Saved confirmation to Firestore");
+    } catch (saveError) {
+      console.error("Error saving confirmation to Firestore:", saveError);
+      // Continue even if save fails, still return the extracted data
+    }
+
     return res.json({
       success: true,
       data: structuredData,
+      savedConfirmation: savedConfirmation
+        ? {
+            id: savedConfirmation.id,
+            tripId: savedConfirmation.tripId,
+          }
+        : null,
     });
   } catch (error) {
     console.error("PDF Upload Error:", error);
@@ -184,6 +245,15 @@ const uploadPDF = async (req, res) => {
  */
 const uploadImage = async (req, res) => {
   try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -212,9 +282,26 @@ const uploadImage = async (req, res) => {
       req.file.mimetype
     );
 
+    // Save confirmation to Firestore
+    let savedConfirmation = null;
+    const { tripId } = req.body;
+    try {
+      savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
+      console.log("✅ Saved confirmation to Firestore");
+    } catch (saveError) {
+      console.error("Error saving confirmation to Firestore:", saveError);
+      // Continue even if save fails, still return the extracted data
+    }
+
     return res.json({
       success: true,
       data: structuredData,
+      savedConfirmation: savedConfirmation
+        ? {
+            id: savedConfirmation.id,
+            tripId: savedConfirmation.tripId,
+          }
+        : null,
     });
   } catch (error) {
     console.error("Image Upload Error:", error);
@@ -226,8 +313,208 @@ const uploadImage = async (req, res) => {
   }
 };
 
+/**
+ * Get all confirmations for the current user
+ * GET /api/travel-confirmations
+ */
+const getConfirmations = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    const confirmations = await getUserConfirmations(userId);
+
+    return res.json({
+      success: true,
+      data: confirmations,
+    });
+  } catch (error) {
+    console.error("Error getting confirmations:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get confirmations.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get confirmations for a specific trip
+ * GET /api/travel-confirmations/trip/:tripId
+ */
+const getConfirmationsByTrip = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    const confirmations = await getTripConfirmations(tripId, userId);
+
+    return res.json({
+      success: true,
+      data: confirmations,
+    });
+  } catch (error) {
+    console.error("Error getting trip confirmations:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get trip confirmations.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get unlinked confirmations (not associated with any trip)
+ * GET /api/travel-confirmations/unlinked
+ */
+const getUnlinked = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    const confirmations = await getUnlinkedConfirmations(userId);
+
+    return res.json({
+      success: true,
+      data: confirmations,
+    });
+  } catch (error) {
+    console.error("Error getting unlinked confirmations:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get unlinked confirmations.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Link a confirmation to a trip
+ * PATCH /api/travel-confirmations/:confirmationId/link
+ */
+const linkToTrip = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { confirmationId } = req.params;
+    const { tripId } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!confirmationId) {
+      return res.status(400).json({
+        success: false,
+        message: "Confirmation ID is required",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    const confirmation = await linkConfirmationToTrip(confirmationId, tripId, userId);
+
+    return res.json({
+      success: true,
+      data: confirmation,
+    });
+  } catch (error) {
+    console.error("Error linking confirmation to trip:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to link confirmation to trip.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Link multiple confirmations to a trip
+ * PATCH /api/travel-confirmations/link-multiple
+ */
+const linkMultipleToTrip = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { confirmationIds, tripId } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!confirmationIds || !Array.isArray(confirmationIds) || confirmationIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Confirmation IDs array is required",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    const confirmations = await linkConfirmationsToTrip(confirmationIds, tripId, userId);
+
+    return res.json({
+      success: true,
+      data: confirmations,
+      message: `Successfully linked ${confirmations.length} confirmation(s) to trip`,
+    });
+  } catch (error) {
+    console.error("Error linking confirmations to trip:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to link confirmations to trip.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   syncGmail,
   uploadPDF,
   uploadImage,
+  getConfirmations,
+  getConfirmationsByTrip,
+  getUnlinked,
+  linkToTrip,
+  linkMultipleToTrip,
 };

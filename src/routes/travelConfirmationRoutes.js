@@ -4,6 +4,11 @@ const {
   syncGmail,
   uploadPDF,
   uploadImage,
+  getConfirmations,
+  getConfirmationsByTrip,
+  getUnlinked,
+  linkToTrip,
+  linkMultipleToTrip,
 } = require("../controllers/travelConfirmationController");
 
 const router = express.Router();
@@ -95,5 +100,135 @@ router.post("/upload-pdf", upload.single("file"), uploadPDF);
  *         description: Server error
  */
 router.post("/upload-image", upload.single("file"), uploadImage);
+
+/**
+ * @swagger
+ * /api/travel-confirmations:
+ *   get:
+ *     summary: Get all travel confirmations for the current user
+ *     tags: [Travel Confirmations]
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved confirmations
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/", getConfirmations);
+
+/**
+ * @swagger
+ * /api/travel-confirmations/trip/{tripId}:
+ *   get:
+ *     summary: Get all confirmations for a specific trip
+ *     tags: [Travel Confirmations]
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The trip ID
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved trip confirmations
+ *       400:
+ *         description: Missing trip ID
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/trip/:tripId", getConfirmationsByTrip);
+
+/**
+ * @swagger
+ * /api/travel-confirmations/unlinked:
+ *   get:
+ *     summary: Get all unlinked confirmations (not associated with any trip)
+ *     tags: [Travel Confirmations]
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved unlinked confirmations
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/unlinked", getUnlinked);
+
+/**
+ * @swagger
+ * /api/travel-confirmations/{confirmationId}/link:
+ *   patch:
+ *     summary: Link a confirmation to a trip
+ *     tags: [Travel Confirmations]
+ *     parameters:
+ *       - in: path
+ *         name: confirmationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The confirmation ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tripId
+ *             properties:
+ *               tripId:
+ *                 type: string
+ *                 description: The trip ID to link to
+ *     responses:
+ *       200:
+ *         description: Successfully linked confirmation to trip
+ *       400:
+ *         description: Missing confirmation ID or trip ID
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.patch("/:confirmationId/link", linkToTrip);
+
+/**
+ * @swagger
+ * /api/travel-confirmations/link-multiple:
+ *   patch:
+ *     summary: Link multiple confirmations to a trip
+ *     tags: [Travel Confirmations]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - confirmationIds
+ *               - tripId
+ *             properties:
+ *               confirmationIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of confirmation IDs
+ *               tripId:
+ *                 type: string
+ *                 description: The trip ID to link to
+ *     responses:
+ *       200:
+ *         description: Successfully linked confirmations to trip
+ *       400:
+ *         description: Missing confirmation IDs or trip ID
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.patch("/link-multiple", linkMultipleToTrip);
 
 module.exports = router;
