@@ -1,6 +1,7 @@
 const { getFirestore } = require("../config/database");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const { getSignedUrl } = require("./gcsService");
 
 const COLLECTION_NAME = "trips";
 
@@ -24,6 +25,22 @@ const ensureActivitiesHaveIds = (activities) => {
     }
     return activity;
   });
+};
+
+/**
+ * Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+ * @param {object} trip - The trip object
+ * @returns {Promise<object>} - The trip object with converted URL
+ */
+const convertCoverPhotoUrl = async (trip) => {
+  if (trip && trip.coverPhotoUrl) {
+    try {
+      trip.coverPhotoUrl = await getSignedUrl(trip.coverPhotoUrl);
+    } catch (error) {
+      console.error("Error converting cover photo URL:", error);
+    }
+  }
+  return trip;
 };
 
 /**
@@ -68,10 +85,13 @@ const saveTrip = async (userId, selectedTrip, itinerary, coverPhotoUrl = null) =
 
     // Return the saved data
     const savedDoc = await docRef.get();
-    return {
+    const savedTrip = {
       id: savedDoc.id,
       ...savedDoc.data(),
     };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(savedTrip);
   } catch (error) {
     console.error("Error saving trip:", error);
     throw error;
@@ -93,10 +113,19 @@ const getUserTrips = async (userId) => {
       return [];
     }
 
-    return snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const trips = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        const tripData = {
+          id: doc.id,
+          ...doc.data(),
+        };
+
+        // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+        return await convertCoverPhotoUrl(tripData);
+      })
+    );
+
+    return trips;
   } catch (error) {
     console.error("Error getting user trips:", error);
     throw error;
@@ -126,10 +155,13 @@ const getTripById = async (tripId, userId) => {
       throw new Error("Unauthorized: Trip does not belong to this user");
     }
 
-    return {
+    const trip = {
       id: doc.id,
       ...tripData,
     };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(trip);
   } catch (error) {
     console.error("Error getting trip by ID:", error);
     throw error;
@@ -188,10 +220,13 @@ const updateDayActivities = async (tripId, userId, dayNumber, activities) => {
 
     // Return the updated data
     const updatedDoc = await docRef.get();
-    return {
+    const updatedTrip = {
       id: updatedDoc.id,
       ...updatedDoc.data(),
     };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
   } catch (error) {
     console.error("Error updating day activities:", error);
     throw error;
@@ -252,10 +287,13 @@ const addDayActivities = async (tripId, userId, dayNumber, newActivities) => {
 
     // Return the updated data
     const updatedDoc = await docRef.get();
-    return {
+    const updatedTrip = {
       id: updatedDoc.id,
       ...updatedDoc.data(),
     };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
   } catch (error) {
     console.error("Error adding day activities:", error);
     throw error;
@@ -352,10 +390,13 @@ const updateActivity = async (tripId, userId, dayNumber, activityId, updatedActi
 
     // Return the updated data
     const updatedDoc = await docRef.get();
-    return {
+    const updatedTrip = {
       id: updatedDoc.id,
       ...updatedDoc.data(),
     };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
   } catch (error) {
     console.error("Error updating activity:", error);
     throw error;
@@ -422,10 +463,13 @@ const deleteActivity = async (tripId, userId, dayNumber, activityId) => {
 
     // Return the updated data
     const updatedDoc = await docRef.get();
-    return {
+    const updatedTrip = {
       id: updatedDoc.id,
       ...updatedDoc.data(),
     };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
   } catch (error) {
     console.error("Error deleting activity:", error);
     throw error;

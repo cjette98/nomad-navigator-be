@@ -111,4 +111,39 @@ const uploadImageToGCS = async (imageBuffer, filename) => {
   }
 };
 
-module.exports = { uploadToGCS, deleteFromGCS, uploadImageToGCS };
+/**
+ * Convert a gs:// URI to a signed HTTP URL that can be used in Expo/React Native
+ * @param {string} gsUri - The GCS URI (e.g., gs://bucket-name/path/to/file.png)
+ * @param {number} expiresInHours - Number of hours until the URL expires (default: 24 * 7 = 7 days)
+ * @returns {Promise<string>} - The signed HTTP URL
+ */
+const getSignedUrl = async (gsUri, expiresInHours = 24 * 7) => {
+  try {
+    if (!gsUri || !gsUri.startsWith("gs://")) {
+      return gsUri; // Return as-is if not a gs:// URI
+    }
+
+    // Extract bucket and filename from gs:// URI
+    // Format: gs://bucket-name/path/to/file.png
+    const uriParts = gsUri.replace("gs://", "").split("/");
+    const bucketName = uriParts[0];
+    const filename = uriParts.slice(1).join("/");
+
+    const bucket = storage.bucket(bucketName);
+    const file = bucket.file(filename);
+
+    // Generate signed URL that expires in specified hours
+    const [url] = await file.getSignedUrl({
+      action: "read",
+      expires: Date.now() + expiresInHours * 60 * 60 * 1000, // Convert hours to milliseconds
+    });
+
+    return url;
+  } catch (error) {
+    console.error("Error generating signed URL:", error);
+    // Return original URI if signing fails (graceful degradation)
+    return gsUri;
+  }
+};
+
+module.exports = { uploadToGCS, deleteFromGCS, uploadImageToGCS, getSignedUrl };
