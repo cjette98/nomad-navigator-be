@@ -1,4 +1,4 @@
-const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity } = require("../services/tripService");
+const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus } = require("../services/tripService");
 const { generateItinerary } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
@@ -532,6 +532,76 @@ const deleteActivityById = async (req, res) => {
   }
 };
 
+/**
+ * Update trip status
+ * PATCH /api/trips/:tripId/status
+ */
+const updateTripStatusController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId } = req.params;
+    const { status } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required",
+      });
+    }
+
+    const updatedTrip = await updateTripStatus(tripId, userId, status);
+
+    return res.status(200).json({
+      success: true,
+      message: "Trip status updated successfully",
+      data: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Error in updateTripStatusController:", error);
+    
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Invalid status")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update trip status",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createTrip,
   getTrips,
@@ -541,4 +611,5 @@ module.exports = {
   addInspirationsToTrip,
   updateActivityById,
   deleteActivityById,
+  updateTripStatusController,
 };

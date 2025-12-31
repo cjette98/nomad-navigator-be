@@ -8,6 +8,7 @@ const {
   addInspirationsToTrip,
   updateActivityById,
   deleteActivityById,
+  updateTripStatusController,
 } = require("../controllers/tripController");
 
 const router = express.Router();
@@ -620,6 +621,86 @@ router.put("/trips/:tripId/days/:dayNumber/activities/:activityId", updateActivi
  *               $ref: '#/components/schemas/Error'
  */
 router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteActivityById);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/status:
+ *   patch:
+ *     summary: Update trip status
+ *     description: Updates the status of a trip. Valid status values are draft, planning, active, and completed.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [draft, planning, active, completed]
+ *                 description: The new status for the trip
+ *                 example: "planning"
+ *     responses:
+ *       200:
+ *         description: Trip status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Trip status updated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid status or missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trip does not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Trip not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch("/trips/:tripId/status", updateTripStatusController);
 
 module.exports = router;
 

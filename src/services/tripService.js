@@ -72,6 +72,7 @@ const saveTrip = async (userId, selectedTrip, itinerary, coverPhotoUrl = null) =
       userId,
       selectedTrip,
       itinerary: itineraryWithIds,
+      status: "draft",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -404,6 +405,58 @@ const updateActivity = async (tripId, userId, dayNumber, activityId, updatedActi
 };
 
 /**
+ * Update trip status
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {string} status - The new status value (draft, planning, active, completed)
+ * @returns {Promise<object>} - The updated trip document
+ */
+const updateTripStatus = async (tripId, userId, status) => {
+  try {
+    const validStatuses = ["draft", "planning", "active", "completed"];
+    
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+    }
+
+    const db = getFirestore();
+    const docRef = db.collection(COLLECTION_NAME).doc(tripId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      throw new Error("Trip not found");
+    }
+
+    const tripData = doc.data();
+
+    // Verify the trip belongs to the user
+    if (tripData.userId !== userId) {
+      throw new Error("Unauthorized: Trip does not belong to this user");
+    }
+
+    const updateData = {
+      status,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await docRef.update(updateData);
+
+    // Return the updated data
+    const updatedDoc = await docRef.get();
+    const updatedTrip = {
+      id: updatedDoc.id,
+      ...updatedDoc.data(),
+    };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
+  } catch (error) {
+    console.error("Error updating trip status:", error);
+    throw error;
+  }
+};
+
+/**
  * Delete a specific activity from a trip day
  * @param {string} tripId - The trip document ID
  * @param {string} userId - The user ID from Clerk (for authorization)
@@ -485,5 +538,6 @@ module.exports = {
   addInspirationItemsToTrip,
   updateActivity,
   deleteActivity,
+  updateTripStatus,
 };
 
