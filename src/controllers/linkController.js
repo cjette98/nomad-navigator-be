@@ -21,6 +21,7 @@ const summarizeLink = async (req, res) => {
     const activities = linkData.suggestedActivities || [];
     
     // Auto-categorize and save content by location
+    let responseData = activities;
     if (activities.length > 0) {
       console.log("📂 Auto-categorizing link content by location...");
       try {
@@ -31,12 +32,16 @@ const summarizeLink = async (req, res) => {
           userId
         );
         console.log("✅ Link content categorized and saved:", categorizationResult);
+        // Use savedItems with IDs if available, otherwise fall back to original activities
+        responseData = categorizationResult.savedItems && categorizationResult.savedItems.length > 0 
+          ? categorizationResult.savedItems 
+          : activities;
       } catch (categorizationError) {
         console.error("⚠️ Error during categorization (continuing anyway):", categorizationError.message);
       }
     }
     
-    return res.json({ success: true, data: activities });
+    return res.json({ success: true, data: responseData });
   } catch (err) {
     console.error("❌ Error summarizing link:", err.message);
     return res

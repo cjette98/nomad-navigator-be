@@ -35,6 +35,7 @@ const analyzeTikTok = async (req, res) => {
 
     // Auto-categorize and save content by location
     console.log("📂 Auto-categorizing content by location...");
+    let responseData = summary;
     try {
       const categorizationResult = await saveCategorizedContent(
         summary,
@@ -43,11 +44,15 @@ const analyzeTikTok = async (req, res) => {
         userId
       );
       console.log("✅ Content categorized and saved:", categorizationResult);
+      // Use savedItems with IDs if available, otherwise fall back to original summary
+      responseData = categorizationResult.savedItems && categorizationResult.savedItems.length > 0 
+        ? categorizationResult.savedItems 
+        : summary;
     } catch (categorizationError) {
       console.error("⚠️ Error during categorization (continuing anyway):", categorizationError.message);
     }
 
-    return res.json({ success: true, data: summary });
+    return res.json({ success: true, data: responseData });
   } catch (err) {
     console.error("❌ Error:", err.message);
     res.status(500).json({ success: false, message: err.message });
