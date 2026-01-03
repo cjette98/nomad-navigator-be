@@ -126,7 +126,7 @@ const getUserTrips = async (userId) => {
       })
     );
 
-    return trips;
+    return trips.filter((trip) => trip.status !== "archive");
   } catch (error) {
     console.error("Error getting user trips:", error);
     throw error;
@@ -408,12 +408,12 @@ const updateActivity = async (tripId, userId, dayNumber, activityId, updatedActi
  * Update trip status
  * @param {string} tripId - The trip document ID
  * @param {string} userId - The user ID from Clerk (for authorization)
- * @param {string} status - The new status value (draft, planning, active, completed)
+ * @param {string} status - The new status value (draft, planning, active, completed, archive)
  * @returns {Promise<object>} - The updated trip document
  */
 const updateTripStatus = async (tripId, userId, status) => {
   try {
-    const validStatuses = ["draft", "planning", "active", "completed"];
+    const validStatuses = ["draft", "planning", "active", "completed", "archive"];
     
     if (!validStatuses.includes(status)) {
       throw new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);

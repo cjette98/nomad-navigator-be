@@ -627,7 +627,7 @@ router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteAct
  * /api/trips/{tripId}/status:
  *   patch:
  *     summary: Update trip status
- *     description: Updates the status of a trip. Valid status values are draft, planning, active, and completed.
+ *     description: Updates the status of a trip. Valid status values are draft, planning, active, completed, and archive.
  *     tags: [Trips]
  *     security:
  *       - bearerAuth: []
@@ -650,7 +650,7 @@ router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteAct
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [draft, planning, active, completed]
+ *                 enum: [draft, planning, active, completed, archive]
  *                 description: The new status for the trip
  *                 example: "planning"
  *     responses:
