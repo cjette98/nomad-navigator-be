@@ -2,7 +2,7 @@ const { getTikTokVideo } = require("../services/tiktokService.js");
 const { uploadToGCS,deleteFromGCS } = require("../services/gcsService.js");
 const { analyzeVideo } = require("../services/videoAIService.js");
 const { generateAISummary } = require("../services/aiSummaryService.js");
-const { saveCategorizedContent, getAllCategories, deleteInspirationItems } = require("../services/categorizationService.js");
+const { saveCategorizedContent, getAllCategories, deleteInspirationItems, filterInspirations } = require("../services/categorizationService.js");
 
 const analyzeTikTok = async (req, res) => {
   let gcsUri = null;
@@ -164,4 +164,47 @@ const deleteInspirations = async (req, res) => {
   }
 };
 
-module.exports = { analyzeTikTok, getAllInspirations, deleteInspirations };
+const filterInspirationsController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    // Get filter parameters from query string
+    const { status, tripId, category } = req.query;
+    
+    const filters = {
+      status: status || "All Inspiration",
+      tripId: tripId || "all",
+      category: category || null,
+    };
+
+    console.log("🔍 Filtering inspirations with filters:", filters);
+    const result = await filterInspirations(userId, filters);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    console.error("❌ Error filtering inspirations:", err.message);
+    
+    if (err.message.includes("Invalid status") || err.message.includes("Invalid category")) {
+      return res.status(400).json({
+        success: false,
+        message: err.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to filter inspirations",
+    });
+  }
+};
+
+module.exports = { analyzeTikTok, getAllInspirations, deleteInspirations, filterInspirationsController };

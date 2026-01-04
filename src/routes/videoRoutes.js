@@ -1,5 +1,5 @@
 const express = require("express");
-const { analyzeTikTok, getAllInspirations, deleteInspirations } = require("../controllers/videoController.js");
+const { analyzeTikTok, getAllInspirations, deleteInspirations, filterInspirationsController } = require("../controllers/videoController.js");
 
 const router = express.Router();
 
@@ -219,5 +219,125 @@ router.get("/", getAllInspirations);
  *               $ref: '#/components/schemas/Error'
  */
 router.delete("/", deleteInspirations);
+
+/**
+ * @swagger
+ * /api/inspiration/filter:
+ *   get:
+ *     summary: Filter inspiration items
+ *     description: Filter inspiration items by assignment status (Unassigned, Assigned to trip, All Inspiration), trip (all trips or specific trip ID), and category (Restaurant, Activity, Landmark, Shop, Accomodation, Other)
+ *     tags: [Inspiration]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [Unassigned, "Assigned to trip", "All Inspiration"]
+ *           default: "All Inspiration"
+ *         description: Filter by assignment status
+ *         example: "Unassigned"
+ *       - in: query
+ *         name: tripId
+ *         schema:
+ *           type: string
+ *         description: Filter by trip - use "all" for all trips or provide a specific trip ID
+ *         example: "all"
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [Restaurant, Activity, Landmark, Shop, Accomodation, Other]
+ *         description: "Filter by inspiration category (Note: Accomodation is spelled with one 'm' to match existing data)"
+ *         example: "Restaurant"
+ *     responses:
+ *       200:
+ *         description: Successfully filtered inspirations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     organizedByLocation:
+ *                       type: array
+ *                       description: Filtered inspirations grouped by location
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           location:
+ *                             type: string
+ *                             example: "Paris"
+ *                           itemCount:
+ *                             type: number
+ *                             example: 3
+ *                           items:
+ *                             type: array
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: string
+ *                                 title:
+ *                                   type: string
+ *                                 description:
+ *                                   type: string
+ *                                 category:
+ *                                   type: string
+ *                                 sourceType:
+ *                                   type: string
+ *                                   enum: [video, link]
+ *                                 sourceUrl:
+ *                                   type: string
+ *                                 addedAt:
+ *                                   type: string
+ *                           createdAt:
+ *                             type: string
+ *                           updatedAt:
+ *                             type: string
+ *                     totalCategories:
+ *                       type: number
+ *                       example: 2
+ *                     totalItems:
+ *                       type: number
+ *                       example: 5
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                         tripId:
+ *                           type: string
+ *                         category:
+ *                           type: string
+ *                           nullable: true
+ *       400:
+ *         description: Bad request - invalid filter parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.get("/filter", filterInspirationsController);
 
 module.exports = router;

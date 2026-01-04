@@ -21,7 +21,7 @@ Now, generate a structured JSON array. Each element in the array represents one 
   {
     "title": "the name of the place, event, or subject featured in the video",
     "description": "a short, natural description (1–2 sentences) based on the title and context",
-    "category": "Restaurant | Cafe | Travel | Food | Product | Lifestyle"
+    "category": "Restaurant | Activity | Landmark | Shop | Accomodation | Other"
   }
 ]
 

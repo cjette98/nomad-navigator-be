@@ -78,7 +78,7 @@ Output format: "City/Place, Country" or "" if no location found`;
         const title = item.title || "";
         // Simple heuristic: if title looks like a location (capitalized, not a category)
         if (title && title[0] === title[0].toUpperCase() && title.length > 2) {
-          const categories = ["Restaurant", "Cafe", "Travel", "Food", "Product", "Lifestyle", "Lodging", "Sightseeing", "Experience", "Logistics", "Shopping", "Other"];
+          const categories = ["Restaurant", "Activity", "Landmark", "Shop", "Accomodation", "Other"];
           if (!categories.includes(title)) {
             return title;
           }
@@ -87,7 +87,7 @@ Output format: "City/Place, Country" or "" if no location found`;
       })
       .filter((loc) => loc !== null);
 
-    return [...new Set(fallbackLocations)]; // Remove duplicates
+    return [...new Set(fallbackLocations)];
   }
 };
 

@@ -554,6 +554,165 @@ const formatInspirationItemsToActivities = (inspirationItems) => {
   }));
 };
 
+/**
+ * Get all activity names from trips for a user
+ * @param {string} userId - The user ID from Clerk
+ * @param {string|null} tripId - Optional specific trip ID to filter by
+ * @returns {Promise<Set<string>>} - Set of activity names (normalized for matching)
+ */
+const getActivityNamesFromTrips = async (userId, tripId = null) => {
+  try {
+    const { getFirestore } = require("../config/database");
+    const db = getFirestore();
+    const tripsRef = db.collection("trips");
+    
+    let tripsSnapshot;
+    if (tripId) {
+      // Get specific trip
+      const tripDoc = await tripsRef.doc(tripId).get();
+      if (!tripDoc.exists || tripDoc.data().userId !== userId) {
+        return new Set();
+      }
+      tripsSnapshot = { docs: [tripDoc] };
+    } else {
+      // Get all trips for user
+      tripsSnapshot = await tripsRef.where("userId", "==", userId).get();
+    }
+    
+    const activityNames = new Set();
+    
+    tripsSnapshot.docs.forEach((doc) => {
+      const tripData = doc.data();
+      const itinerary = tripData.itinerary || {};
+      
+      // Iterate through all days
+      Object.keys(itinerary).forEach((dayKey) => {
+        if (dayKey.startsWith("day")) {
+          const day = itinerary[dayKey];
+          const activities = day.activities || [];
+          
+          activities.forEach((activity) => {
+            if (activity.name) {
+              // Normalize activity name for matching (lowercase, trim)
+              const normalizedName = activity.name.toLowerCase().trim();
+              if (normalizedName) {
+                activityNames.add(normalizedName);
+              }
+            }
+          });
+        }
+      });
+    });
+    
+    return activityNames;
+  } catch (error) {
+    console.error("❌ Error getting activity names from trips:", error);
+    throw error;
+  }
+};
+
+/**
+ * Filter inspiration items based on status, trip, and category
+ * @param {string} userId - The user ID from Clerk
+ * @param {object} filters - Filter options
+ * @param {string} filters.status - "Unassigned", "Assigned to trip", or "All Inspiration"
+ * @param {string} filters.tripId - "all" or a specific trip ID
+ * @param {string|null} filters.category - Category filter (Restaurant, Activity, Landmark, Shop, Accomodation, Other) or null for all
+ * @returns {Promise<object>} - Filtered inspiration items organized by location
+ */
+const filterInspirations = async (userId, filters = {}) => {
+  try {
+    if (!userId) {
+      throw new Error("UserId is required to filter inspirations");
+    }
+    
+    const { status = "All Inspiration", tripId = "all", category = null } = filters;
+    
+    // Validate status filter
+    const validStatuses = ["Unassigned", "Assigned to trip", "All Inspiration"];
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+    }
+    
+    // Validate category filter if provided
+    // Note: Using "Accomodation" (one 'm') to match existing data from AI summary service
+    const validCategories = ["Restaurant", "Activity", "Landmark", "Shop", "Accomodation", "Other"];
+    if (category && !validCategories.includes(category)) {
+      throw new Error(`Invalid category. Must be one of: ${validCategories.join(", ")}`);
+    }
+    
+    // Get all inspirations for the user
+    const allCategories = await getAllCategories(userId);
+    
+    // Get activity names from trips if we need to check assignment status
+    let activityNamesSet = new Set();
+    const checkAssignment = status === "Unassigned" || status === "Assigned to trip";
+    
+    if (checkAssignment) {
+      const specificTripId = tripId === "all" ? null : tripId;
+      activityNamesSet = await getActivityNamesFromTrips(userId, specificTripId);
+    }
+    
+    // Filter and organize inspirations
+    const filteredCategories = [];
+    let totalFilteredItems = 0;
+    
+    for (const categoryDoc of allCategories) {
+      const items = categoryDoc.items || [];
+      const filteredItems = [];
+      
+      for (const item of items) {
+        // Filter by category
+        if (category && item.category !== category) {
+          continue;
+        }
+        
+        // Filter by assignment status
+        if (checkAssignment) {
+          const itemTitle = (item.title || "").toLowerCase().trim();
+          const isAssigned = activityNamesSet.has(itemTitle);
+          
+          if (status === "Unassigned" && isAssigned) {
+            continue;
+          }
+          if (status === "Assigned to trip" && !isAssigned) {
+            continue;
+          }
+        }
+        
+        filteredItems.push(item);
+      }
+      
+      // Only include category if it has filtered items
+      if (filteredItems.length > 0) {
+        filteredCategories.push({
+          id: categoryDoc.id,
+          location: categoryDoc.location,
+          itemCount: filteredItems.length,
+          items: filteredItems,
+          createdAt: categoryDoc.createdAt,
+          updatedAt: categoryDoc.updatedAt,
+        });
+        totalFilteredItems += filteredItems.length;
+      }
+    }
+    
+    return {
+      organizedByLocation: filteredCategories,
+      totalCategories: filteredCategories.length,
+      totalItems: totalFilteredItems,
+      filters: {
+        status,
+        tripId,
+        category,
+      },
+    };
+  } catch (error) {
+    console.error("❌ Error filtering inspirations:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   saveCategorizedContent,
   getCategoryItems,
@@ -561,4 +720,5 @@ module.exports = {
   deleteInspirationItems,
   getInspirationItemsByIds,
   formatInspirationItemsToActivities,
+  filterInspirations,
 };
