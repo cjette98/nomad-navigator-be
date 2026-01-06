@@ -260,6 +260,74 @@ const getUnlinkedConfirmations = async (userId) => {
   }
 };
 
+/**
+ * Link confirmations to a trip with specific days
+ * @param {Array<string>} confirmationIds - Array of confirmation document IDs
+ * @param {string} tripId - The trip document ID to link to
+ * @param {Array<number>} days - Array of day numbers to link confirmations to
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @returns {Promise<Array<object>>} - Array of updated confirmation documents
+ */
+const linkConfirmationsToTripWithDays = async (confirmationIds, tripId, days, userId) => {
+  try {
+    if (!Array.isArray(confirmationIds) || confirmationIds.length === 0) {
+      throw new Error("Confirmation IDs array is required and must not be empty");
+    }
+
+    if (!Array.isArray(days) || days.length === 0) {
+      throw new Error("Days array is required and must not be empty");
+    }
+
+    // Validate day numbers are positive integers
+    const validDays = days.filter((day) => Number.isInteger(day) && day > 0);
+    if (validDays.length === 0) {
+      throw new Error("Days must be an array of positive integers");
+    }
+
+    const db = getFirestore();
+    const batch = db.batch();
+    const updatedConfirmations = [];
+
+    for (const confirmationId of confirmationIds) {
+      const confirmationRef = db.collection(COLLECTION_NAME).doc(confirmationId);
+      const confirmationDoc = await confirmationRef.get();
+
+      if (!confirmationDoc.exists) {
+        console.warn(`Confirmation ${confirmationId} not found, skipping`);
+        continue;
+      }
+
+      const confirmationData = confirmationDoc.data();
+
+      // Verify the confirmation belongs to the user
+      if (confirmationData.userId !== userId) {
+        console.warn(`Confirmation ${confirmationId} does not belong to user ${userId}, skipping`);
+        continue;
+      }
+
+      // Update confirmation with tripId and days
+      batch.update(confirmationRef, {
+        tripId,
+        days: validDays,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      updatedConfirmations.push({
+        id: confirmationId,
+        ...confirmationData,
+        tripId,
+        days: validDays,
+      });
+    }
+
+    await batch.commit();
+    return updatedConfirmations;
+  } catch (error) {
+    console.error("Error linking confirmations to trip with days:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   saveConfirmation,
   saveConfirmations,
@@ -268,5 +336,6 @@ module.exports = {
   linkConfirmationToTrip,
   linkConfirmationsToTrip,
   getUnlinkedConfirmations,
+  linkConfirmationsToTripWithDays,
 };
 

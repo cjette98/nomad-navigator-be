@@ -13,6 +13,7 @@ const {
   linkConfirmationToTrip,
   linkConfirmationsToTrip,
   getUnlinkedConfirmations,
+  linkConfirmationsToTripWithDays,
 } = require("../services/travelConfirmationService");
 
 const openai = new OpenAI({
@@ -508,6 +509,104 @@ const linkMultipleToTrip = async (req, res) => {
   }
 };
 
+/**
+ * Link confirmations to a trip with specific days
+ * POST /api/trips/:tripId/days/:dayNumber/confirmations
+ */
+const linkConfirmationsToTripDays = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId, dayNumber } = req.params;
+    const { confirmationIds } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    if (!dayNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Day number is required",
+      });
+    }
+
+    const dayNum = parseInt(dayNumber, 10);
+    if (isNaN(dayNum) || dayNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Day number must be a positive integer",
+      });
+    }
+
+    if (!confirmationIds || !Array.isArray(confirmationIds) || confirmationIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Confirmation IDs array is required and must not be empty",
+      });
+    }
+
+    // Validate that all confirmation IDs are strings
+    if (!confirmationIds.every((id) => typeof id === "string" && id.trim().length > 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "All confirmation IDs must be non-empty strings",
+      });
+    }
+
+    const confirmations = await linkConfirmationsToTripWithDays(
+      confirmationIds,
+      tripId,
+      [dayNum],
+      userId
+    );
+
+    if (confirmations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No confirmations found with the provided IDs or they don't belong to this user",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully linked ${confirmations.length} confirmation(s) to trip for day ${dayNum}`,
+      data: confirmations,
+    });
+  } catch (error) {
+    console.error("Error linking confirmations to trip days:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to link confirmations to trip days.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   syncGmail,
   uploadPDF,
@@ -517,4 +616,5 @@ module.exports = {
   getUnlinked,
   linkToTrip,
   linkMultipleToTrip,
+  linkConfirmationsToTripDays,
 };

@@ -10,6 +10,7 @@ const {
   deleteActivityById,
   updateTripStatusController,
 } = require("../controllers/tripController");
+const { linkConfirmationsToTripDays } = require("../controllers/travelConfirmationController");
 
 const router = express.Router();
 
@@ -432,6 +433,97 @@ router.post("/trips/:tripId/days/:dayNumber/activities", addActivities);
  *               $ref: '#/components/schemas/Error'
  */
 router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/confirmations:
+ *   post:
+ *     summary: Link confirmations to a trip with specific day
+ *     description: Links travel confirmations to a trip and associates them with a specific day number. Similar to the inspiration module endpoint.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - confirmationIds
+ *             properties:
+ *               confirmationIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of confirmation IDs to link to the trip
+ *                 example: ["conf1", "conf2", "conf3"]
+ *     responses:
+ *       200:
+ *         description: Confirmations linked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully linked 3 confirmation(s) to trip for day 1"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       400:
+ *         description: Bad request - invalid parameters or empty confirmationIds array
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - confirmations do not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: No confirmations found with provided IDs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post("/trips/:tripId/days/:dayNumber/confirmations", linkConfirmationsToTripDays);
 
 /**
  * @swagger
