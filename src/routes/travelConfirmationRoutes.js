@@ -7,6 +7,7 @@ const {
   getConfirmations,
   getConfirmationsByTrip,
   getUnlinked,
+  getFilteredConfirmations,
 } = require("../controllers/travelConfirmationController");
 
 const router = express.Router();
@@ -19,6 +20,40 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
 });
+
+/**
+ * @swagger
+ * /api/travel-confirmations/filter:
+ *   get:
+ *     summary: Filter travel confirmations
+ *     description: Filter confirmations by assignment status (all, assigned, unassigned) and category (all, flight, hotel, car, restaurant, activity, other).
+ *     tags: [Travel Confirmations]
+ *     parameters:
+ *       - in: query
+ *         name: assignment
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [all, assigned, unassigned]
+ *         description: Filter by assignment to a trip. Defaults to all.
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [all, flight, hotel, car, restaurant, activity, other]
+ *         description: Filter by confirmation category. Defaults to all.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved filtered confirmations
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/filter", getFilteredConfirmations);
 
 /**
  * @swagger

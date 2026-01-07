@@ -9,6 +9,9 @@ const {
   updateActivityById,
   deleteActivityById,
   updateTripStatusController,
+  regenerateDay,
+  getActivityAlternatives,
+  deleteTripController,
 } = require("../controllers/tripController");
 const { linkConfirmationsToTripDays } = require("../controllers/travelConfirmationController");
 
@@ -793,6 +796,193 @@ router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteAct
  *               $ref: '#/components/schemas/Error'
  */
 router.patch("/trips/:tripId/status", updateTripStatusController);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/regenerate:
+ *   post:
+ *     summary: Regenerate activities for a specific day
+ *     description: Regenerates activities for a specific day using AI, while preserving fixed activities (like confirmations) and avoiding duplicates from other days.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               excludeActivityIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of activity IDs to keep (not regenerate)
+ *                 example: ["activity123", "activity456"]
+ *     responses:
+ *       200:
+ *         description: Day activities regenerated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Day 1 activities regenerated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid parameters
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Trip not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post("/trips/:tripId/days/:dayNumber/regenerate", regenerateDay);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/activities/{activityId}/alternatives:
+ *   get:
+ *     summary: Get alternative activity recommendations
+ *     description: Returns alternative activity options to replace an existing activity. Uses AI to generate relevant alternatives based on the trip context.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *       - in: path
+ *         name: activityId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the activity to replace
+ *         example: "activity123"
+ *       - in: query
+ *         name: timeBlock
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [morning, afternoon, evening]
+ *         description: Optional time block filter
+ *         example: "morning"
+ *     responses:
+ *       200:
+ *         description: Alternative activities retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       timeBlock:
+ *                         type: string
+ *                         enum: [morning, afternoon, evening]
+ *                       description:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                       location:
+ *                         type: string
+ *       400:
+ *         description: Bad request - invalid parameters
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Trip or activity not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/trips/:tripId/days/:dayNumber/activities/:activityId/alternatives", getActivityAlternatives);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}:
+ *   delete:
+ *     summary: Delete a trip
+ *     description: Soft deletes a trip by setting its status to "archive". The trip will no longer appear in regular trip listings.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *     responses:
+ *       200:
+ *         description: Trip deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Trip deleted successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid trip ID
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Trip not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete("/trips/:tripId", deleteTripController);
 
 module.exports = router;
 

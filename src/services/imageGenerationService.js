@@ -54,3 +54,4 @@ const generateTripCoverPhoto = async (destination) => {
 module.exports = { generateTripCoverPhoto };
 
 
+
