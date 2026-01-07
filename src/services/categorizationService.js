@@ -551,16 +551,22 @@ const formatInspirationItemsToActivities = (inspirationItems) => {
     const activityType = mapCategoryToActivityType(item.category);
     const timeBlock = determineTimeBlock(item.time || null, activityType);
     
-    return {
+    const activity = {
       name: item.title || "Untitled Activity",
       description: item.description || "",
       location: item.categoryLocation || "", // Use the location from the category
       type: activityType,
       timeBlock, // Add timeBlock field
-      time: item.time || undefined, // Optional specific time
       sourceType: "inspiration",
       sourceId: item.id, // Link to inspiration item ID
     };
+    
+    // Only include time if it exists (Firestore doesn't allow undefined)
+    if (item.time) {
+      activity.time = item.time;
+    }
+    
+    return activity;
   });
 };
 

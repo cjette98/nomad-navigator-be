@@ -124,6 +124,7 @@ curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/2/activities" \
     "activities": [
       {
         "name": "Evening Food Tour",
+        "timeBlock": "evening",
         "time": "6:00 PM",
         "description": "Explore local street food and hidden gems",
         "type": "activity",
@@ -131,6 +132,7 @@ curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/2/activities" \
       },
       {
         "name": "Karaoke Night",
+        "timeBlock": "evening",
         "time": "9:00 PM",
         "description": "Experience Japanese karaoke culture",
         "type": "activity",
@@ -138,6 +140,91 @@ curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/2/activities" \
       }
     ]
   }'
+```
+
+### 7. Regenerate Day Activities
+Regenerate activities for a specific day using AI, while preserving fixed activities (like confirmations).
+
+```bash
+curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/1/regenerate" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "excludeActivityIds": ["activity123", "activity456"]
+  }'
+```
+
+**Note:** `excludeActivityIds` is optional. Activities with IDs in this array will be preserved during regeneration.
+
+### 8. Get Activity Alternatives
+Get alternative activity recommendations to replace an existing activity.
+
+```bash
+curl -X GET "http://localhost:3000/api/trips/TRIP_ID_HERE/days/1/activities/ACTIVITY_ID_HERE/alternatives?timeBlock=morning" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**Query Parameters:**
+- `timeBlock` (optional): Filter alternatives by time block ("morning", "afternoon", "evening")
+
+### 9. Add Inspirations to Day (with Auto-Arrange)
+Add inspiration items to a specific day. Optionally auto-arrange the day to fit new inspirations.
+
+```bash
+# Without auto-arrange (manual placement)
+curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/1/inspirations" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemIds": ["inspiration_id_1", "inspiration_id_2"]
+  }'
+```
+
+```bash
+# With auto-arrange (AI rearranges day automatically)
+curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/1/inspirations" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "itemIds": ["inspiration_id_1", "inspiration_id_2"],
+    "autoArrange": true
+  }'
+```
+
+### 10. Link Confirmations to Day (with Auto-Slot)
+Link travel confirmations to a trip day. Optionally auto-slot confirmations into itinerary.
+
+```bash
+# Without auto-slot (just link to day)
+curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/1/confirmations" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "confirmationIds": ["confirmation_id_1", "confirmation_id_2"]
+  }'
+```
+
+```bash
+# With auto-slot (AI automatically slots confirmations and rearranges day)
+curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/1/confirmations" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "confirmationIds": ["confirmation_id_1", "confirmation_id_2"],
+    "autoSlot": true
+  }'
+```
+
+**Note:** If `dayNumber` is not provided in the URL, the system will auto-determine the day from the confirmation date.
+
+### 11. Delete Trip
+Soft delete a trip by setting its status to "archive".
+
+```bash
+curl -X DELETE "http://localhost:3000/api/trips/TRIP_ID_HERE" \
+  -H "Authorization: Bearer YOUR_CLERK_SESSION_TOKEN" \
+  -H "Content-Type: application/json"
 ```
 
 ---
@@ -196,10 +283,13 @@ curl -X POST "http://localhost:3000/api/trips/TRIP_ID_HERE/days/2/activities" \
 
 - Replace `YOUR_CLERK_SESSION_TOKEN` with your actual Clerk session token
 - Replace `TRIP_ID_HERE` with the actual trip ID from the create trip response
+- Replace `ACTIVITY_ID_HERE` with the actual activity ID
 - Replace `http://localhost:3000` with your actual server URL
-- Day numbers must be 1, 2, or 3
+- Day numbers must be positive integers (1, 2, 3, etc.)
 - All timestamps are in ISO 8601 format
 - Activity types: "attraction", "restaurant", "activity", "transport", "accommodation", "other"
+- Time blocks: "morning" (6am-12pm), "afternoon" (12pm-6pm), "evening" (6pm-12am)
+- Activities now support `timeBlock` field in addition to optional `time` field
 
 ---
 

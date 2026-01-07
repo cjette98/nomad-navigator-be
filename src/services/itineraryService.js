@@ -75,7 +75,7 @@ Create a comprehensive itinerary with specific activities for EACH day (day1 to 
 - Mix of must-see attractions, local experiences, and meals
 - Activities that align with the destination and trip highlights
 
-IMPORTANT: Organize activities by time blocks (mornxing, afternoon, evening) instead of exact times:
+IMPORTANT: Organize activities by time blocks (morning, afternoon, evening) instead of exact times:
 - Morning: 6:00 AM - 12:00 PM
 - Afternoon: 12:00 PM - 6:00 PM
 - Evening: 6:00 PM - 12:00 AM
@@ -113,7 +113,7 @@ Return ONLY a valid JSON object in this exact format (no markdown, no explanatio
 Rules:
 - Include day1 through day${dayCount} (no extra days).
 - If a date is missing, infer sequential dates from start_date.
-- Each day should have 2-3 activities per time block (morning, afternoon, evening).
+- Each day should have 3-5 activities per time block (morning, afternoon, evening).
 - All activities MUST have a timeBlock field ("morning", "afternoon", or "evening").
 - Only include the "time" field if there's a specific time requirement (e.g., reservation, flight).`;
 

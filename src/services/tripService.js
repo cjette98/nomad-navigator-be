@@ -14,6 +14,25 @@ const generateActivityId = () => {
 };
 
 /**
+ * Remove undefined values from an object (Firestore doesn't allow undefined)
+ * @param {object} obj - Object to clean
+ * @returns {object} - Cleaned object without undefined values
+ */
+const removeUndefinedValues = (obj) => {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = removeUndefinedValues(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+};
+
+/**
  * Normalize an activity to ensure it has all required fields
  * @param {object} activity - Activity object
  * @returns {object} - Normalized activity
@@ -41,7 +60,8 @@ const normalizeActivity = (activity) => {
     activity.isFixed = activity.sourceType === "confirmation";
   }
   
-  return activity;
+  // Remove undefined values before returning (Firestore doesn't allow undefined)
+  return removeUndefinedValues(activity);
 };
 
 /**
@@ -94,10 +114,13 @@ const saveTrip = async (userId, selectedTrip, itinerary, coverPhotoUrl = null) =
       });
     }
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(itineraryWithIds);
+
     const tripData = {
       userId,
       selectedTrip,
-      itinerary: itineraryWithIds,
+      itinerary: cleanedItinerary,
       status: "draft",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -226,7 +249,7 @@ const updateDayActivities = async (tripId, userId, dayNumber, activities) => {
     const currentItinerary = tripData.itinerary || {};
     const currentDay = currentItinerary[dayKey] || {};
 
-    // Ensure all activities have IDs
+    // Ensure all activities have IDs and clean undefined values
     const activitiesWithIds = ensureActivitiesHaveIds(activities);
 
     // Update the activities for the specific day
@@ -238,8 +261,11 @@ const updateDayActivities = async (tripId, userId, dayNumber, activities) => {
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -305,8 +331,11 @@ const addDayActivities = async (tripId, userId, dayNumber, newActivities) => {
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -408,8 +437,11 @@ const updateActivity = async (tripId, userId, dayNumber, activityId, updatedActi
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -533,8 +565,11 @@ const deleteActivity = async (tripId, userId, dayNumber, activityId) => {
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 

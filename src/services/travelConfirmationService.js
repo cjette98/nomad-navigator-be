@@ -560,10 +560,9 @@ const formatConfirmationToActivity = (confirmation) => {
     // Build location
     const location = data.location || data.address || data.departureLocation || data.arrivalLocation || "";
     
-    return {
+    const activity = {
       name: activityName,
       timeBlock,
-      time: time || undefined,
       description,
       type: activityType,
       location,
@@ -571,6 +570,13 @@ const formatConfirmationToActivity = (confirmation) => {
       sourceId: confirmation.id,
       isFixed: true, // Confirmations are fixed
     };
+    
+    // Only include time if it exists (Firestore doesn't allow undefined)
+    if (time) {
+      activity.time = time;
+    }
+    
+    return activity;
   } catch (error) {
     console.error("Error formatting confirmation to activity:", error);
     // Return a basic activity as fallback

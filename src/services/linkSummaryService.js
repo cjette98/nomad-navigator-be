@@ -38,6 +38,8 @@ const summarizeLinkContent = async (url) => {
 
   const pageText = await fetchPageText(url);
 
+  console.log("pageText", JSON.stringify(pageText));
+
   const prompt = `You are a travel content summarizer. Based on the article content below, create a concise JSON payload a user can attach to trip activities.
 
 Source URL: ${url}
@@ -53,12 +55,13 @@ Return ONLY valid JSON (no markdown) in this shape:
     {
       "title": "short activity/place name",
       "description": "1-2 sentence description of what to do/expect",
-      "category": "Food | Lodging | Sightseeing | Experience | Logistics | Shopping | Other"
+      "category": "category": "Restaurant | Activity | Landmark | Shop | Accomodation | Other"
     }
   ]
 }
 
 Rules:
+- Include all the relevant items.
 - Keep descriptions practical for itinerary building.
 - If the content isn't strongly travel-related, infer the most relevant activities or leave suggestedActivities empty.
 - Do not invent details not implied by the content.`;
