@@ -439,10 +439,10 @@ router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip
 
 /**
  * @swagger
- * /api/trips/{tripId}/days/{dayNumber}/confirmations:
+ * /api/trips/{tripId}/confirmations:
  *   post:
- *     summary: Link confirmations to a trip with specific day
- *     description: Links travel confirmations to a trip and associates them with a specific day number. Similar to the inspiration module endpoint.
+ *     summary: Add confirmations to a trip (AI auto-determines day and time block)
+ *     description: Adds travel confirmations to a trip. AI automatically determines the day and time block based on the parsed date and time in the confirmation data, then slots them into the itinerary.
  *     tags: [Trips]
  *     security:
  *       - bearerAuth: []
@@ -454,14 +454,6 @@ router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip
  *           type: string
  *         description: The unique identifier of the trip
  *         example: "trip123"
- *       - in: path
- *         name: dayNumber
- *         required: true
- *         schema:
- *           type: integer
- *           minimum: 1
- *         description: The day number (1, 2, 3, etc.)
- *         example: 1
  *     requestBody:
  *       required: true
  *       content:
@@ -475,11 +467,16 @@ router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Array of confirmation IDs to link to the trip
+ *                 description: Array of confirmation IDs to add to the trip
  *                 example: ["conf1", "conf2", "conf3"]
+ *               autoSlot:
+ *                 type: boolean
+ *                 default: true
+ *                 description: "Whether to automatically slot confirmations into the itinerary (default: true)"
+ *                 example: true
  *     responses:
  *       200:
- *         description: Confirmations linked successfully
+ *         description: Confirmations added successfully
  *         content:
  *           application/json:
  *             schema:
@@ -490,11 +487,9 @@ router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Successfully linked 3 confirmation(s) to trip for day 1"
+ *                   example: "Successfully linked 3 confirmation(s) to trip with auto-slotting"
  *                 data:
- *                   type: array
- *                   items:
- *                     type: object
+ *                   $ref: '#/components/schemas/Trip'
  *       400:
  *         description: Bad request - invalid parameters or empty confirmationIds array
  *         content:
@@ -526,7 +521,7 @@ router.post("/trips/:tripId/days/:dayNumber/inspirations", addInspirationsToTrip
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post("/trips/:tripId/days/:dayNumber/confirmations", linkConfirmationsToTripDays);
+router.post("/trips/:tripId/confirmations", linkConfirmationsToTripDays);
 
 /**
  * @swagger
@@ -802,7 +797,7 @@ router.patch("/trips/:tripId/status", updateTripStatusController);
  * /api/trips/{tripId}/days/{dayNumber}/regenerate:
  *   post:
  *     summary: Regenerate activities for a specific day
- *     description: Regenerates activities for a specific day using AI, while preserving fixed activities (like confirmations) and avoiding duplicates from other days.
+ *     description: "Regenerates activities for a specific day using AI. Fixed activities (like confirmations with isFixed: true) are automatically preserved, and duplicates from other days are avoided."
  *     tags: [Trips]
  *     security:
  *       - bearerAuth: []
@@ -822,19 +817,6 @@ router.patch("/trips/:tripId/status", updateTripStatusController);
  *           minimum: 1
  *         description: The day number (1, 2, 3, etc.)
  *         example: 1
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               excludeActivityIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: Array of activity IDs to keep (not regenerate)
- *                 example: ["activity123", "activity456"]
  *     responses:
  *       200:
  *         description: Day activities regenerated successfully

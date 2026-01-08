@@ -643,7 +643,6 @@ const regenerateDay = async (req, res) => {
   try {
     const userId = req.userId;
     const { tripId, dayNumber } = req.params;
-    const { excludeActivityIds } = req.body || {};
 
     if (!userId) {
       return res.status(401).json({
@@ -667,19 +666,12 @@ const regenerateDay = async (req, res) => {
       });
     }
 
-    // Validate excludeActivityIds if provided
-    if (excludeActivityIds && !Array.isArray(excludeActivityIds)) {
-      return res.status(400).json({
-        success: false,
-        message: "excludeActivityIds must be an array",
-      });
-    }
-
+    // Fixed activities (like confirmations) are automatically preserved
     const updatedTrip = await regenerateDayActivities(
       tripId,
       userId,
       dayNum,
-      excludeActivityIds || []
+      [] // No excludeActivityIds needed - fixed activities are preserved automatically
     );
 
     return res.status(200).json({

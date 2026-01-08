@@ -523,7 +523,7 @@ const linkConfirmationsToTripDays = async (req, res) => {
   try {
     const userId = req.userId;
     const { tripId, dayNumber } = req.params;
-    const { confirmationIds, autoSlot } = req.body;
+    const { confirmationIds, autoSlot = true } = req.body;
 
     if (!userId) {
       return res.status(401).json({
