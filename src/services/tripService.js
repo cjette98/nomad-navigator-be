@@ -591,6 +591,69 @@ const deleteActivity = async (tripId, userId, dayNumber, activityId) => {
 };
 
 /**
+ * Save current activities to version history (max 2 versions)
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {number} dayNumber - The day number (1, 2, 3, etc.)
+ * @param {Array} currentActivities - The current activities to save
+ * @returns {Promise<void>}
+ */
+const saveToVersionHistory = async (tripId, userId, dayNumber, currentActivities) => {
+  try {
+    const db = getFirestore();
+    const docRef = db.collection(COLLECTION_NAME).doc(tripId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      throw new Error("Trip not found");
+    }
+
+    const tripData = doc.data();
+
+    // Verify the trip belongs to the user
+    if (tripData.userId !== userId) {
+      throw new Error("Unauthorized: Trip does not belong to this user");
+    }
+
+    const dayKey = `day${dayNumber}`;
+    const currentItinerary = tripData.itinerary || {};
+    const currentDay = currentItinerary[dayKey] || {};
+    const existingVersionHistory = currentDay.versionHistory || [];
+
+    // Create new version entry
+    const newVersion = {
+      activities: JSON.parse(JSON.stringify(currentActivities)), // Deep copy
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    // Add new version and keep only the last 2 versions
+    const updatedVersionHistory = [newVersion, ...existingVersionHistory].slice(0, 2);
+
+    // Update the day with new version history
+    const updatedItinerary = {
+      ...currentItinerary,
+      [dayKey]: {
+        ...currentDay,
+        versionHistory: updatedVersionHistory,
+      },
+    };
+
+    // Clean undefined values from itinerary before saving
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
+    const updateData = {
+      itinerary: cleanedItinerary,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await docRef.update(updateData);
+  } catch (error) {
+    console.error("Error saving to version history:", error);
+    throw error;
+  }
+};
+
+/**
  * Regenerate activities for a specific day
  * @param {string} tripId - The trip document ID
  * @param {string} userId - The user ID from Clerk (for authorization)
@@ -608,6 +671,17 @@ const regenerateDayActivities = async (tripId, userId, dayNumber, excludeActivit
       throw new Error("Trip not found");
     }
 
+    // Get current activities before regenerating
+    const dayKey = `day${dayNumber}`;
+    const currentItinerary = trip.itinerary || {};
+    const currentDay = currentItinerary[dayKey] || {};
+    const currentActivities = currentDay.activities || [];
+
+    // Save current activities to version history if there are any
+    if (currentActivities.length > 0) {
+      await saveToVersionHistory(tripId, userId, dayNumber, currentActivities);
+    }
+
     // Regenerate activities using the auto-arrangement service
     const regeneratedActivities = await regenerateActivities(trip, dayNumber, excludeActivityIds);
 
@@ -615,6 +689,87 @@ const regenerateDayActivities = async (tripId, userId, dayNumber, excludeActivit
     return await updateDayActivities(tripId, userId, dayNumber, regeneratedActivities);
   } catch (error) {
     console.error("Error regenerating day activities:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get version history for a specific day
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {number} dayNumber - The day number (1, 2, 3, etc.)
+ * @returns {Promise<Array>} - Array of version history entries
+ */
+const getDayVersionHistory = async (tripId, userId, dayNumber) => {
+  try {
+    const trip = await getTripById(tripId, userId);
+    if (!trip) {
+      throw new Error("Trip not found");
+    }
+
+    const dayKey = `day${dayNumber}`;
+    const itinerary = trip.itinerary || {};
+    const day = itinerary[dayKey] || {};
+    const versionHistory = day.versionHistory || [];
+
+    // Convert Firestore timestamps to readable format
+    return versionHistory.map((version, index) => ({
+      versionNumber: index + 1,
+      activities: version.activities || [],
+      createdAt: version.createdAt ? (version.createdAt.toDate ? version.createdAt.toDate().toISOString() : version.createdAt) : null,
+    }));
+  } catch (error) {
+    console.error("Error getting day version history:", error);
+    throw error;
+  }
+};
+
+/**
+ * Rollback to a previous version of activities for a specific day
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {number} dayNumber - The day number (1, 2, 3, etc.)
+ * @param {number} versionNumber - The version number to rollback to (1 or 2)
+ * @returns {Promise<object>} - The updated trip document
+ */
+const rollbackToVersion = async (tripId, userId, dayNumber, versionNumber) => {
+  try {
+    if (versionNumber < 1 || versionNumber > 2) {
+      throw new Error("Version number must be 1 or 2");
+    }
+
+    const trip = await getTripById(tripId, userId);
+    if (!trip) {
+      throw new Error("Trip not found");
+    }
+
+    const dayKey = `day${dayNumber}`;
+    const itinerary = trip.itinerary || {};
+    const day = itinerary[dayKey] || {};
+    const versionHistory = day.versionHistory || [];
+
+    if (versionHistory.length === 0) {
+      throw new Error("No version history available for this day");
+    }
+
+    if (versionNumber > versionHistory.length) {
+      throw new Error(`Version ${versionNumber} does not exist. Only ${versionHistory.length} version(s) available.`);
+    }
+
+    // Get the version to rollback to (versionNumber is 1-indexed, array is 0-indexed)
+    const versionToRestore = versionHistory[versionNumber - 1];
+    const activitiesToRestore = versionToRestore.activities || [];
+
+    // Save current activities to version history before rollback
+    const currentActivities = day.activities || [];
+    if (currentActivities.length > 0) {
+      await saveToVersionHistory(tripId, userId, dayNumber, currentActivities);
+    }
+
+    // Restore the activities from the selected version
+    return await updateDayActivities(tripId, userId, dayNumber, activitiesToRestore);
+  } catch (error) {
+    console.error("Error rolling back to version:", error);
     throw error;
   }
 };
@@ -646,6 +801,8 @@ module.exports = {
   deleteActivity,
   updateTripStatus,
   regenerateDayActivities,
+  getDayVersionHistory,
+  rollbackToVersion,
   deleteTrip,
 };
 
