@@ -1,4 +1,4 @@
-const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, deleteTrip } = require("../services/tripService");
+const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, getDayVersionHistory, rollbackToVersion, deleteTrip } = require("../services/tripService");
 const { generateItinerary } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
@@ -779,6 +779,146 @@ const getActivityAlternatives = async (req, res) => {
 };
 
 /**
+ * Get version history for a specific day
+ * GET /api/trips/:tripId/days/:dayNumber/versions
+ */
+const getDayVersions = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId, dayNumber } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId || !dayNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID and day number are required",
+      });
+    }
+
+    const dayNum = parseInt(dayNumber, 10);
+    if (isNaN(dayNum) || dayNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Day number must be a positive integer",
+      });
+    }
+
+    const versionHistory = await getDayVersionHistory(tripId, userId, dayNum);
+
+    return res.status(200).json({
+      success: true,
+      data: versionHistory,
+    });
+  } catch (error) {
+    console.error("Error in getDayVersions controller:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get version history",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Rollback to a previous version of activities for a specific day
+ * POST /api/trips/:tripId/days/:dayNumber/versions/:versionNumber/rollback
+ */
+const rollbackDayVersion = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId, dayNumber, versionNumber } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId || !dayNumber || !versionNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID, day number, and version number are required",
+      });
+    }
+
+    const dayNum = parseInt(dayNumber, 10);
+    if (isNaN(dayNum) || dayNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Day number must be a positive integer",
+      });
+    }
+
+    const versionNum = parseInt(versionNumber, 10);
+    if (isNaN(versionNum) || versionNum < 1 || versionNum > 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Version number must be 1 or 2",
+      });
+    }
+
+    const updatedTrip = await rollbackToVersion(tripId, userId, dayNum, versionNum);
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully rolled back to version ${versionNum} for day ${dayNum}`,
+      data: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Error in rollbackDayVersion controller:", error);
+
+    if (error.message.includes("not found") || error.message.includes("does not exist")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Version number must be") || error.message.includes("No version history")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to rollback to version",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Delete a trip
  * DELETE /api/trips/:tripId
  */
@@ -845,5 +985,7 @@ module.exports = {
   updateTripStatusController,
   regenerateDay,
   getActivityAlternatives,
+  getDayVersions,
+  rollbackDayVersion,
   deleteTripController,
 };

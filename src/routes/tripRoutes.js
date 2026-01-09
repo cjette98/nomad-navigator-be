@@ -11,6 +11,8 @@ const {
   updateTripStatusController,
   regenerateDay,
   getActivityAlternatives,
+  getDayVersions,
+  rollbackDayVersion,
   deleteTripController,
 } = require("../controllers/tripController");
 const { linkConfirmationsToTripDays } = require("../controllers/travelConfirmationController");
@@ -921,6 +923,133 @@ router.post("/trips/:tripId/days/:dayNumber/regenerate", regenerateDay);
  *         description: Internal server error
  */
 router.get("/trips/:tripId/days/:dayNumber/activities/:activityId/alternatives", getActivityAlternatives);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/versions:
+ *   get:
+ *     summary: Get version history for a specific day
+ *     description: Returns the version history (up to 2 versions) for activities on a specific day. Versions are automatically saved when activities are regenerated.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Version history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       versionNumber:
+ *                         type: integer
+ *                         description: Version number (1 or 2)
+ *                         example: 1
+ *                       activities:
+ *                         type: array
+ *                         description: Array of activities for this version
+ *                         items:
+ *                           type: object
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Timestamp when this version was created
+ *                         example: "2025-01-15T10:30:00.000Z"
+ *       400:
+ *         description: Bad request - invalid parameters
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Trip not found
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/trips/:tripId/days/:dayNumber/versions", getDayVersions);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/days/{dayNumber}/versions/{versionNumber}/rollback:
+ *   post:
+ *     summary: Rollback to a previous version of activities
+ *     description: Restores activities for a specific day to a previous version (1 or 2). The current activities are saved to version history before rollback.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *       - in: path
+ *         name: dayNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: The day number (1, 2, 3, etc.)
+ *         example: 1
+ *       - in: path
+ *         name: versionNumber
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 2
+ *         description: The version number to rollback to (1 or 2)
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Successfully rolled back to previous version
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully rolled back to version 1 for day 1"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - invalid parameters or version number
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Trip not found or version does not exist
+ *       500:
+ *         description: Internal server error
+ */
+router.post("/trips/:tripId/days/:dayNumber/versions/:versionNumber/rollback", rollbackDayVersion);
 
 /**
  * @swagger
