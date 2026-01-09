@@ -1,4 +1,4 @@
-const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus } = require("../services/tripService");
+const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, deleteTrip } = require("../services/tripService");
 const { generateItinerary } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
@@ -306,7 +306,7 @@ const addInspirationsToTrip = async (req, res) => {
   try {
     const userId = req.userId;
     const { tripId, dayNumber } = req.params;
-    const { itemIds } = req.body;
+    const { itemIds, autoArrange } = req.body;
 
     if (!userId) {
       return res.status(401).json({
@@ -362,12 +362,45 @@ const addInspirationsToTrip = async (req, res) => {
     
     console.log(`✅ Formatted ${formattedActivities.length} inspiration item(s) into activities`);
 
-    // Add formatted activities to the trip day
-    const updatedTrip = await addInspirationItemsToTrip(tripId, userId, dayNum, formattedActivities);
+    let updatedTrip;
+
+    if (autoArrange === true) {
+      // Auto-arrange: Use AI to rearrange the day
+      console.log("🔄 Auto-arranging day to fit new inspiration(s)...");
+      
+      const { arrangeDayWithInspiration } = require("../services/autoArrangementService");
+      const trip = await getTripById(tripId, userId);
+      
+      if (!trip) {
+        return res.status(404).json({
+          success: false,
+          message: "Trip not found",
+        });
+      }
+
+      // For multiple inspirations, add them one by one with auto-arrangement
+      let currentTrip = trip;
+      for (const activity of formattedActivities) {
+        const rearrangedActivities = await arrangeDayWithInspiration(
+          currentTrip,
+          dayNum,
+          activity
+        );
+        
+        // Update the trip with rearranged activities
+        currentTrip = await updateDayActivities(tripId, userId, dayNum, rearrangedActivities);
+      }
+      
+      updatedTrip = currentTrip;
+      console.log("✅ Day auto-arranged successfully");
+    } else {
+      // Manual placement: Just add activities
+      updatedTrip = await addInspirationItemsToTrip(tripId, userId, dayNum, formattedActivities);
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Successfully added ${formattedActivities.length} inspiration item(s) to day ${dayNum}`,
+      message: `Successfully added ${formattedActivities.length} inspiration item(s) to day ${dayNum}${autoArrange ? " with auto-arrangement" : ""}`,
       data: updatedTrip,
     });
   } catch (error) {
@@ -602,6 +635,204 @@ const updateTripStatusController = async (req, res) => {
   }
 };
 
+/**
+ * Regenerate activities for a specific day
+ * POST /api/trips/:tripId/days/:dayNumber/regenerate
+ */
+const regenerateDay = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId, dayNumber } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId || !dayNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID and day number are required",
+      });
+    }
+
+    const dayNum = parseInt(dayNumber, 10);
+    if (isNaN(dayNum) || dayNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Day number must be a positive integer",
+      });
+    }
+
+    // Fixed activities (like confirmations) are automatically preserved
+    const updatedTrip = await regenerateDayActivities(
+      tripId,
+      userId,
+      dayNum,
+      [] // No excludeActivityIds needed - fixed activities are preserved automatically
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Day ${dayNum} activities regenerated successfully`,
+      data: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Error in regenerateDay controller:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to regenerate day activities",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get alternative activity recommendations
+ * GET /api/trips/:tripId/days/:dayNumber/activities/:activityId/alternatives
+ */
+const getActivityAlternatives = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId, dayNumber, activityId } = req.params;
+    const { timeBlock } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId || !dayNumber || !activityId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID, day number, and activity ID are required",
+      });
+    }
+
+    const dayNum = parseInt(dayNumber, 10);
+    if (isNaN(dayNum) || dayNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Day number must be a positive integer",
+      });
+    }
+
+    // Get the trip
+    const trip = await getTripById(tripId, userId);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    // Get alternatives
+    const { getActivityAlternatives: getAlternatives } = require("../services/activityRecommendationService");
+    const alternatives = await getAlternatives(trip, dayNum, activityId, timeBlock || null);
+
+    return res.status(200).json({
+      success: true,
+      data: alternatives,
+    });
+  } catch (error) {
+    console.error("Error in getActivityAlternatives controller:", error);
+
+    if (error.message.includes("not found") || error.message.includes("Activity not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get activity alternatives",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Delete a trip
+ * DELETE /api/trips/:tripId
+ */
+const deleteTripController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    const updatedTrip = await deleteTrip(tripId, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Trip deleted successfully",
+      data: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Error in deleteTripController:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete trip",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createTrip,
   getTrips,
@@ -612,4 +843,7 @@ module.exports = {
   updateActivityById,
   deleteActivityById,
   updateTripStatusController,
+  regenerateDay,
+  getActivityAlternatives,
+  deleteTripController,
 };

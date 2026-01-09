@@ -14,17 +14,63 @@ const generateActivityId = () => {
 };
 
 /**
- * Ensure activities have IDs (add IDs to activities that don't have them)
+ * Remove undefined values from an object (Firestore doesn't allow undefined)
+ * @param {object} obj - Object to clean
+ * @returns {object} - Cleaned object without undefined values
+ */
+const removeUndefinedValues = (obj) => {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = removeUndefinedValues(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+};
+
+/**
+ * Normalize an activity to ensure it has all required fields
+ * @param {object} activity - Activity object
+ * @returns {object} - Normalized activity
+ */
+const normalizeActivity = (activity) => {
+  const { determineTimeBlock } = require("./autoArrangementService");
+  
+  // Ensure ID
+  if (!activity.id) {
+    activity.id = generateActivityId();
+  }
+  
+  // Ensure timeBlock - infer from time if missing
+  if (!activity.timeBlock) {
+    activity.timeBlock = determineTimeBlock(activity.time, activity.type);
+  }
+  
+  // Ensure sourceType defaults to "ai" if not set
+  if (!activity.sourceType) {
+    activity.sourceType = "ai";
+  }
+  
+  // Ensure isFixed defaults to false if not set (unless it's a confirmation)
+  if (activity.isFixed === undefined) {
+    activity.isFixed = activity.sourceType === "confirmation";
+  }
+  
+  // Remove undefined values before returning (Firestore doesn't allow undefined)
+  return removeUndefinedValues(activity);
+};
+
+/**
+ * Ensure activities have IDs and required fields (add IDs to activities that don't have them)
  * @param {Array} activities - Array of activity objects
- * @returns {Array} - Array of activities with IDs
+ * @returns {Array} - Array of activities with IDs and required fields
  */
 const ensureActivitiesHaveIds = (activities) => {
-  return activities.map((activity) => {
-    if (!activity.id) {
-      return { ...activity, id: generateActivityId() };
-    }
-    return activity;
-  });
+  return activities.map((activity) => normalizeActivity({ ...activity }));
 };
 
 /**
@@ -68,10 +114,13 @@ const saveTrip = async (userId, selectedTrip, itinerary, coverPhotoUrl = null) =
       });
     }
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(itineraryWithIds);
+
     const tripData = {
       userId,
       selectedTrip,
-      itinerary: itineraryWithIds,
+      itinerary: cleanedItinerary,
       status: "draft",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -200,7 +249,7 @@ const updateDayActivities = async (tripId, userId, dayNumber, activities) => {
     const currentItinerary = tripData.itinerary || {};
     const currentDay = currentItinerary[dayKey] || {};
 
-    // Ensure all activities have IDs
+    // Ensure all activities have IDs and clean undefined values
     const activitiesWithIds = ensureActivitiesHaveIds(activities);
 
     // Update the activities for the specific day
@@ -212,8 +261,11 @@ const updateDayActivities = async (tripId, userId, dayNumber, activities) => {
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -279,8 +331,11 @@ const addDayActivities = async (tripId, userId, dayNumber, newActivities) => {
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -382,8 +437,11 @@ const updateActivity = async (tripId, userId, dayNumber, activityId, updatedActi
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -507,8 +565,11 @@ const deleteActivity = async (tripId, userId, dayNumber, activityId) => {
       },
     };
 
+    // Clean undefined values from itinerary before saving (Firestore doesn't allow undefined)
+    const cleanedItinerary = removeUndefinedValues(updatedItinerary);
+
     const updateData = {
-      itinerary: updatedItinerary,
+      itinerary: cleanedItinerary,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
@@ -529,6 +590,51 @@ const deleteActivity = async (tripId, userId, dayNumber, activityId) => {
   }
 };
 
+/**
+ * Regenerate activities for a specific day
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {number} dayNumber - The day number (1, 2, 3, etc.)
+ * @param {Array<string>} excludeActivityIds - Activity IDs to keep (not regenerate)
+ * @returns {Promise<object>} - The updated trip document
+ */
+const regenerateDayActivities = async (tripId, userId, dayNumber, excludeActivityIds = []) => {
+  try {
+    const { regenerateDayActivities: regenerateActivities } = require("./autoArrangementService");
+    
+    // Get the trip
+    const trip = await getTripById(tripId, userId);
+    if (!trip) {
+      throw new Error("Trip not found");
+    }
+
+    // Regenerate activities using the auto-arrangement service
+    const regeneratedActivities = await regenerateActivities(trip, dayNumber, excludeActivityIds);
+
+    // Update the day with regenerated activities
+    return await updateDayActivities(tripId, userId, dayNumber, regeneratedActivities);
+  } catch (error) {
+    console.error("Error regenerating day activities:", error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a trip (soft delete by setting status to archive)
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @returns {Promise<object>} - The updated trip document
+ */
+const deleteTrip = async (tripId, userId) => {
+  try {
+    // Soft delete by setting status to archive
+    return await updateTripStatus(tripId, userId, "archive");
+  } catch (error) {
+    console.error("Error deleting trip:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   saveTrip,
   getUserTrips,
@@ -539,5 +645,7 @@ module.exports = {
   updateActivity,
   deleteActivity,
   updateTripStatus,
+  regenerateDayActivities,
+  deleteTrip,
 };
 

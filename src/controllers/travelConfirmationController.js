@@ -13,7 +13,13 @@ const {
   linkConfirmationToTrip,
   linkConfirmationsToTrip,
   getUnlinkedConfirmations,
+  linkConfirmationsToTripWithDays,
+  filterConfirmations,
+  formatConfirmationToActivity,
+  determineDayFromConfirmation,
 } = require("../services/travelConfirmationService");
+const { getTripById, updateDayActivities } = require("../services/tripService");
+const { arrangeDayWithConfirmation } = require("../services/autoArrangementService");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -508,6 +514,198 @@ const linkMultipleToTrip = async (req, res) => {
   }
 };
 
+/**
+ * Link confirmations to a trip with specific days
+ * POST /api/trips/:tripId/days/:dayNumber/confirmations
+ * Enhanced: Auto-determines day from confirmation date if dayNumber not provided, auto-slots into time block
+ */
+const linkConfirmationsToTripDays = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId, dayNumber } = req.params;
+    const { confirmationIds, autoSlot = true } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    if (!confirmationIds || !Array.isArray(confirmationIds) || confirmationIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Confirmation IDs array is required and must not be empty",
+      });
+    }
+
+    // Validate that all confirmation IDs are strings
+    if (!confirmationIds.every((id) => typeof id === "string" && id.trim().length > 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "All confirmation IDs must be non-empty strings",
+      });
+    }
+
+    // Get the trip
+    let trip = await getTripById(tripId, userId);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    // Get confirmations by IDs
+    const { getUserConfirmations } = require("../services/travelConfirmationService");
+    const allConfirmations = await getUserConfirmations(userId);
+    const confirmationsToLink = allConfirmations.filter((conf) =>
+      confirmationIds.includes(conf.id)
+    );
+
+    if (confirmationsToLink.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No confirmations found with the provided IDs or they don't belong to this user",
+      });
+    }
+
+    // Determine days for each confirmation
+    const confirmationsByDay = {};
+    
+    for (const confirmation of confirmationsToLink) {
+      let targetDay = dayNumber ? parseInt(dayNumber, 10) : null;
+
+      // Auto-determine day from confirmation date if not provided
+      if (!targetDay) {
+        targetDay = determineDayFromConfirmation(confirmation, trip);
+        if (!targetDay) {
+          // If can't determine, default to day 1
+          targetDay = 1;
+        }
+      }
+
+      if (isNaN(targetDay) || targetDay < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Day number must be a positive integer",
+        });
+      }
+
+      if (!confirmationsByDay[targetDay]) {
+        confirmationsByDay[targetDay] = [];
+      }
+      confirmationsByDay[targetDay].push(confirmation);
+    }
+
+    // Link confirmations to trip with days
+    const linkedConfirmations = [];
+    for (const [dayStr, confirmations] of Object.entries(confirmationsByDay)) {
+      const dayNum = parseInt(dayStr, 10);
+      const confIds = confirmations.map((c) => c.id);
+
+      const linked = await linkConfirmationsToTripWithDays(confIds, tripId, [dayNum], userId);
+      linkedConfirmations.push(...linked);
+
+      // Auto-slot confirmations into itinerary if autoSlot is true
+      if (autoSlot === true) {
+        console.log(`🔄 Auto-sloting ${confirmations.length} confirmation(s) into day ${dayNum}...`);
+
+        for (const confirmation of confirmations) {
+          // Format confirmation as activity
+          const confirmationActivity = formatConfirmationToActivity(confirmation);
+
+          // Arrange day with confirmation
+          const rearrangedActivities = await arrangeDayWithConfirmation(
+            trip,
+            dayNum,
+            confirmationActivity
+          );
+
+          // Update the trip with rearranged activities
+          trip = await updateDayActivities(tripId, userId, dayNum, rearrangedActivities);
+        }
+
+        console.log(`✅ Auto-sloted confirmations into day ${dayNum}`);
+      }
+    }
+
+    // Get updated trip if auto-slotting was performed
+    const updatedTrip = autoSlot === true ? trip : null;
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully linked ${linkedConfirmations.length} confirmation(s) to trip${autoSlot ? " with auto-slotting" : ""}`,
+      data: autoSlot ? updatedTrip : linkedConfirmations,
+    });
+  } catch (error) {
+    console.error("Error linking confirmations to trip days:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to link confirmations to trip days.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Filter confirmations by assignment and category
+ * GET /api/travel-confirmations/filter
+ */
+const getFilteredConfirmations = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { assignment = "all", category = "all" } = req.query;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    const confirmations = await filterConfirmations(userId, { assignment, category });
+
+    return res.json({
+      success: true,
+      data: confirmations,
+      filters: {
+        assignment: assignment || "all",
+        category: category || "all",
+      },
+    });
+  } catch (error) {
+    console.error("Error filtering confirmations:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to filter confirmations.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   syncGmail,
   uploadPDF,
@@ -517,4 +715,6 @@ module.exports = {
   getUnlinked,
   linkToTrip,
   linkMultipleToTrip,
+  linkConfirmationsToTripDays,
+  getFilteredConfirmations,
 };

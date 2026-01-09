@@ -7,8 +7,7 @@ const {
   getConfirmations,
   getConfirmationsByTrip,
   getUnlinked,
-  linkToTrip,
-  linkMultipleToTrip,
+  getFilteredConfirmations,
 } = require("../controllers/travelConfirmationController");
 
 const router = express.Router();
@@ -21,6 +20,40 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
 });
+
+/**
+ * @swagger
+ * /api/travel-confirmations/filter:
+ *   get:
+ *     summary: Filter travel confirmations
+ *     description: Filter confirmations by assignment status (all, assigned, unassigned) and category (all, flight, hotel, car, restaurant, activity, other).
+ *     tags: [Travel Confirmations]
+ *     parameters:
+ *       - in: query
+ *         name: assignment
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [all, assigned, unassigned]
+ *         description: Filter by assignment to a trip. Defaults to all.
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [all, flight, hotel, car, restaurant, activity, other]
+ *         description: Filter by confirmation category. Defaults to all.
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved filtered confirmations
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get("/filter", getFilteredConfirmations);
 
 /**
  * @swagger
@@ -157,78 +190,5 @@ router.get("/trip/:tripId", getConfirmationsByTrip);
  *         description: Server error
  */
 router.get("/unlinked", getUnlinked);
-
-/**
- * @swagger
- * /api/travel-confirmations/{confirmationId}/link:
- *   patch:
- *     summary: Link a confirmation to a trip
- *     tags: [Travel Confirmations]
- *     parameters:
- *       - in: path
- *         name: confirmationId
- *         required: true
- *         schema:
- *           type: string
- *         description: The confirmation ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - tripId
- *             properties:
- *               tripId:
- *                 type: string
- *                 description: The trip ID to link to
- *     responses:
- *       200:
- *         description: Successfully linked confirmation to trip
- *       400:
- *         description: Missing confirmation ID or trip ID
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.patch("/:confirmationId/link", linkToTrip);
-
-/**
- * @swagger
- * /api/travel-confirmations/link-multiple:
- *   patch:
- *     summary: Link multiple confirmations to a trip
- *     tags: [Travel Confirmations]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - confirmationIds
- *               - tripId
- *             properties:
- *               confirmationIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: Array of confirmation IDs
- *               tripId:
- *                 type: string
- *                 description: The trip ID to link to
- *     responses:
- *       200:
- *         description: Successfully linked confirmations to trip
- *       400:
- *         description: Missing confirmation IDs or trip ID
- *       401:
- *         description: Unauthorized
- *       500:
- *         description: Server error
- */
-router.patch("/link-multiple", linkMultipleToTrip);
 
 module.exports = router;

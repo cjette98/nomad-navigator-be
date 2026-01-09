@@ -545,13 +545,29 @@ const mapCategoryToActivityType = (category) => {
  * @returns {Array} - Array of formatted activity objects
  */
 const formatInspirationItemsToActivities = (inspirationItems) => {
-  return inspirationItems.map((item) => ({
-    name: item.title || "Untitled Activity",
-    description: item.description || "",
-    location: item.categoryLocation || "", // Use the location from the category
-    type: mapCategoryToActivityType(item.category),
-    time: "", // Leave time empty, user can set it later or use default scheduling
-  }));
+  const { determineTimeBlock } = require("./autoArrangementService");
+  
+  return inspirationItems.map((item) => {
+    const activityType = mapCategoryToActivityType(item.category);
+    const timeBlock = determineTimeBlock(item.time || null, activityType);
+    
+    const activity = {
+      name: item.title || "Untitled Activity",
+      description: item.description || "",
+      location: item.categoryLocation || "", // Use the location from the category
+      type: activityType,
+      timeBlock, // Add timeBlock field
+      sourceType: "inspiration",
+      sourceId: item.id, // Link to inspiration item ID
+    };
+    
+    // Only include time if it exists (Firestore doesn't allow undefined)
+    if (item.time) {
+      activity.time = item.time;
+    }
+    
+    return activity;
+  });
 };
 
 /**

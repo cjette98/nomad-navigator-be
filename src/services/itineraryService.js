@@ -75,9 +75,15 @@ Create a comprehensive itinerary with specific activities for EACH day (day1 to 
 - Mix of must-see attractions, local experiences, and meals
 - Activities that align with the destination and trip highlights
 
+IMPORTANT: Organize activities by time blocks (morning, afternoon, evening) instead of exact times:
+- Morning: 6:00 AM - 12:00 PM
+- Afternoon: 12:00 PM - 6:00 PM
+- Evening: 6:00 PM - 12:00 AM
+
 For each activity, provide:
 - name: The name of the activity/place
-- time: Suggested time (e.g., "9:00 AM", "2:00 PM", "Evening")
+- timeBlock: One of "morning", "afternoon", or "evening" (REQUIRED)
+- time: Optional specific time if needed (e.g., "9:00 AM" for a specific reservation, otherwise omit)
 - description: A brief description (1-2 sentences)
 - type: One of: "attraction", "restaurant", "activity", "transport", "accommodation", "other"
 - location: The location/address if relevant
@@ -91,14 +97,14 @@ Return ONLY a valid JSON object in this exact format (no markdown, no explanatio
     "date": "YYYY-MM-DD",
     "summary": "short overview of the day",
     "activities": [
-      { "name": "string", "time": "string", "description": "string", "type": "attraction", "location": "string" }
+      { "name": "string", "timeBlock": "morning", "time": "optional specific time", "description": "string", "type": "attraction", "location": "string" }
     ]
   },
   "day2": {
     "date": "YYYY-MM-DD",
     "summary": "short overview of the day",
     "activities": [
-      { "name": "string", "time": "string", "description": "string", "type": "attraction", "location": "string" }
+      { "name": "string", "timeBlock": "afternoon", "description": "string", "type": "attraction", "location": "string" }
     ]
   },
   "...": {}
@@ -107,7 +113,9 @@ Return ONLY a valid JSON object in this exact format (no markdown, no explanatio
 Rules:
 - Include day1 through day${dayCount} (no extra days).
 - If a date is missing, infer sequential dates from start_date.
-- Each day should have at least 4-6 activities covering morning, afternoon, and evening.`;
+- Each day should have 3-5 activities per time block (morning, afternoon, evening).
+- All activities MUST have a timeBlock field ("morning", "afternoon", or "evening").
+- Only include the "time" field if there's a specific time requirement (e.g., reservation, flight).`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -137,6 +145,37 @@ Rules:
         if (!day || !Array.isArray(day.activities)) {
           throw new Error(`Invalid response structure from AI - missing ${dayKey} activities`);
         }
+
+        // Ensure all activities have timeBlock field and add sourceType
+        day.activities = day.activities.map((activity) => {
+          // If timeBlock is missing, try to infer from time field
+          if (!activity.timeBlock && activity.time) {
+            const timeStr = activity.time.toLowerCase();
+            if (timeStr.includes("morning") || timeStr.includes("am") && !timeStr.includes("pm")) {
+              activity.timeBlock = "morning";
+            } else if (timeStr.includes("afternoon") || (timeStr.includes("pm") && !timeStr.includes("am"))) {
+              activity.timeBlock = "afternoon";
+            } else if (timeStr.includes("evening") || timeStr.includes("night")) {
+              activity.timeBlock = "evening";
+            } else {
+              // Default to morning if can't determine
+              activity.timeBlock = "morning";
+            }
+          } else if (!activity.timeBlock) {
+            // Default to morning if no time info
+            activity.timeBlock = "morning";
+          }
+
+          // Ensure timeBlock is valid
+          if (!["morning", "afternoon", "evening"].includes(activity.timeBlock)) {
+            activity.timeBlock = "morning";
+          }
+
+          // Add sourceType for AI-generated activities
+          activity.sourceType = "ai";
+
+          return activity;
+        });
       }
 
       return parsed;
