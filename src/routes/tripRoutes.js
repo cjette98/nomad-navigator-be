@@ -390,6 +390,24 @@ router.post("/trips/:tripId/days/:dayNumber/activities", addActivities);
  *                   type: string
  *                 description: Array of inspiration item IDs to add to the trip
  *                 example: ["a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6", "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7"]
+ *               autoArrange:
+ *                 type: boolean
+ *                 description: Whether to auto-arrange the day to fit new inspirations
+ *                 example: false
+ *               timeBlock:
+ *                 type: string
+ *                 enum: [morning, afternoon, evening]
+ *                 description: Single timeBlock to apply to all inspiration items (optional)
+ *                 example: "morning"
+ *               timeBlocks:
+ *                 type: object
+ *                 additionalProperties:
+ *                   type: string
+ *                   enum: [morning, afternoon, evening]
+ *                 description: Object mapping itemId to timeBlock for individual timeblocks (optional, takes precedence over timeBlock)
+ *                 example:
+ *                   "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6": "morning"
+ *                   "b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7": "afternoon"
  *     responses:
  *       200:
  *         description: Inspiration items added successfully

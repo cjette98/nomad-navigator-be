@@ -542,21 +542,35 @@ const mapCategoryToActivityType = (category) => {
 /**
  * Format inspiration items into trip activity format
  * @param {Array} inspirationItems - Array of inspiration items with categoryLocation
+ * @param {string|null} timeBlock - Optional single timeBlock to apply to all items ("morning", "afternoon", "evening")
+ * @param {object|null} timeBlocks - Optional object mapping itemId -> timeBlock for individual timeblocks
  * @returns {Array} - Array of formatted activity objects
  */
-const formatInspirationItemsToActivities = (inspirationItems) => {
+const formatInspirationItemsToActivities = (inspirationItems, timeBlock = null, timeBlocks = null) => {
   const { determineTimeBlock } = require("./autoArrangementService");
   
   return inspirationItems.map((item) => {
     const activityType = mapCategoryToActivityType(item.category);
-    const timeBlock = determineTimeBlock(item.time || null, activityType);
+    
+    // Determine timeBlock: prioritize timeBlocks object, then single timeBlock, then auto-determine
+    let finalTimeBlock;
+    if (timeBlocks && timeBlocks[item.id]) {
+      // Use timeBlock from timeBlocks object if available
+      finalTimeBlock = timeBlocks[item.id];
+    } else if (timeBlock) {
+      // Use single timeBlock if provided
+      finalTimeBlock = timeBlock;
+    } else {
+      // Auto-determine from time and activity type
+      finalTimeBlock = determineTimeBlock(item.time || null, activityType);
+    }
     
     const activity = {
       name: item.title || "Untitled Activity",
       description: item.description || "",
       location: item.categoryLocation || "", // Use the location from the category
       type: activityType,
-      timeBlock, // Add timeBlock field
+      timeBlock: finalTimeBlock, // Add timeBlock field
       sourceType: "inspiration",
       sourceId: item.id, // Link to inspiration item ID
     };

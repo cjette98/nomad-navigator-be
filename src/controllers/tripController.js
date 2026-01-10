@@ -306,7 +306,7 @@ const addInspirationsToTrip = async (req, res) => {
   try {
     const userId = req.userId;
     const { tripId, dayNumber } = req.params;
-    const { itemIds, autoArrange } = req.body;
+    const { itemIds, autoArrange, timeBlock, timeBlocks } = req.body;
 
     if (!userId) {
       return res.status(401).json({
@@ -345,6 +345,37 @@ const addInspirationsToTrip = async (req, res) => {
       });
     }
 
+    // Validate timeBlock if provided (single timeBlock for all)
+    if (timeBlock !== undefined) {
+      const validTimeBlocks = ["morning", "afternoon", "evening"];
+      if (!validTimeBlocks.includes(timeBlock)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid timeBlock. Must be one of: ${validTimeBlocks.join(", ")}`,
+        });
+      }
+    }
+
+    // Validate timeBlocks if provided (object mapping itemId -> timeBlock)
+    if (timeBlocks !== undefined) {
+      if (typeof timeBlocks !== "object" || Array.isArray(timeBlocks) || timeBlocks === null) {
+        return res.status(400).json({
+          success: false,
+          message: "timeBlocks must be an object mapping itemId to timeBlock",
+        });
+      }
+
+      const validTimeBlocks = ["morning", "afternoon", "evening"];
+      for (const [itemId, tb] of Object.entries(timeBlocks)) {
+        if (!validTimeBlocks.includes(tb)) {
+          return res.status(400).json({
+            success: false,
+            message: `Invalid timeBlock "${tb}" for itemId "${itemId}". Must be one of: ${validTimeBlocks.join(", ")}`,
+          });
+        }
+      }
+    }
+
     console.log(`✨ Getting ${itemIds.length} inspiration item(s) and formatting them...`);
     
     // Get inspiration items by IDs
@@ -357,8 +388,8 @@ const addInspirationsToTrip = async (req, res) => {
       });
     }
 
-    // Format inspiration items to activity format
-    const formattedActivities = formatInspirationItemsToActivities(inspirationItems);
+    // Format inspiration items to activity format with timeblocks
+    const formattedActivities = formatInspirationItemsToActivities(inspirationItems, timeBlock, timeBlocks);
     
     console.log(`✅ Formatted ${formattedActivities.length} inspiration item(s) into activities`);
 
