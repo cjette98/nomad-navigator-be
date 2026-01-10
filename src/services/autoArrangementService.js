@@ -297,11 +297,11 @@ Rules:
 };
 
 /**
- * Regenerate day activities while avoiding duplicates
+ * Regenerate day activities by reshuffling existing activities across time blocks
  * @param {object} trip - The trip object
  * @param {number} dayNumber - The day number
- * @param {Array<string>} excludeActivityIds - Activity IDs to exclude from regeneration (keep these)
- * @returns {Promise<Array>} - Regenerated activities array
+ * @param {Array<string>} excludeActivityIds - Activity IDs to exclude from reshuffling (keep their timeblocks)
+ * @returns {Promise<Array>} - Reshuffled activities array
  */
 const regenerateDayActivities = async (trip, dayNumber, excludeActivityIds = []) => {
   try {
@@ -310,72 +310,58 @@ const regenerateDayActivities = async (trip, dayNumber, excludeActivityIds = [])
     const day = itinerary[dayKey] || {};
     const existingActivities = day.activities || [];
 
-    // Get activities to keep (fixed activities and those in excludeActivityIds)
-    const activitiesToKeep = existingActivities.filter(
+    if (existingActivities.length === 0) {
+      return [];
+    }
+
+    // Separate activities into fixed (cannot be moved) and flexible (can be reshuffled)
+    const fixedActivities = existingActivities.filter(
       (activity) => activity.isFixed === true || excludeActivityIds.includes(activity.id)
     );
+    const flexibleActivities = existingActivities.filter(
+      (activity) => activity.isFixed !== true && !excludeActivityIds.includes(activity.id)
+    );
 
-    // Get all activity names from other days to avoid duplicates
-    const allActivityNames = new Set();
-    Object.keys(itinerary).forEach((key) => {
-      if (key.startsWith("day") && key !== dayKey) {
-        const otherDay = itinerary[key];
-        if (otherDay?.activities) {
-          otherDay.activities.forEach((activity) => {
-            if (activity.name) {
-              allActivityNames.add(activity.name.toLowerCase().trim());
-            }
-          });
-        }
-      }
-    });
-
-    // Also add names from activities to keep
-    activitiesToKeep.forEach((activity) => {
-      if (activity.name) {
-        allActivityNames.add(activity.name.toLowerCase().trim());
-      }
-    });
+    // If no flexible activities, return as-is
+    if (flexibleActivities.length === 0) {
+      return existingActivities;
+    }
 
     const tripInfo = {
       destination: trip.selectedTrip?.destination || "destination",
       vibe: trip.selectedTrip?.vibe || trip.selectedTrip?.theme || "mixed",
-      budget: trip.selectedTrip?.budget || "mid",
-      travelers: trip.selectedTrip?.travelers || 1,
     };
 
-    const prompt = `You are an expert travel planner. Regenerate activities for day ${dayNumber} of a trip.
+    const prompt = `You are an expert travel planner. Reshuffle the activities for day ${dayNumber} by redistributing them across time blocks.
 
 Trip Context:
 - Destination: ${tripInfo.destination}
 - Vibe: ${tripInfo.vibe}
-- Budget: ${tripInfo.budget}
-- Travelers: ${tripInfo.travelers}
 
-Activities to Keep (these must be included and cannot be changed):
-${JSON.stringify(activitiesToKeep, null, 2)}
+Fixed Activities (these MUST keep their current timeBlock and cannot be moved):
+${JSON.stringify(fixedActivities, null, 2)}
 
-Activities Already Scheduled on Other Days (DO NOT duplicate these):
-${Array.from(allActivityNames).join(", ")}
+Flexible Activities (these need to be reshuffled across time blocks: morning, afternoon, evening):
+${JSON.stringify(flexibleActivities, null, 2)}
 
 Task:
-1. Include all activities from "Activities to Keep" exactly as they are
-2. Generate NEW activities to fill out the day (morning, afternoon, evening)
-3. Ensure activities are organized by time blocks
-4. Do NOT duplicate any activities from the "Already Scheduled" list
-5. Create a logical flow throughout the day
-6. Match the trip's vibe and budget
+1. Keep ALL fixed activities exactly as they are (same timeBlock, same position)
+2. Reshuffle ONLY the flexible activities across the three time blocks: morning, afternoon, evening
+3. Ensure activities are logically distributed across morning, afternoon, and evening
+4. Create a logical flow throughout the day
+5. DO NOT create new activities - only use the existing flexible activities
+6. DO NOT change any activity properties except timeBlock (and optionally time for better flow)
 
-Return ONLY a valid JSON array of activities in this exact format (no markdown, no explanations):
+Return ONLY a valid JSON array of ALL activities (fixed + reshuffled flexible) in this exact format (no markdown, no explanations):
 [
   {
-    "id": "string (preserve IDs for kept activities, generate new for others)",
-    "name": "string",
-    "timeBlock": "morning" | "afternoon" | "evening",
+    "id": "string (preserve all existing IDs)",
+    "name": "string (preserve existing names)",
+    "timeBlock": "morning" | "afternoon" | "evening" (reshuffle flexible activities only)",
     "time": "optional specific time",
-    "description": "string",
+    "description": "string (preserve existing descriptions)",
     "type": "attraction" | "restaurant" | "activity" | "transport" | "accommodation" | "other",
-    "location": "string",
+    "location": "string (preserve existing locations)",
     "sourceType": "ai" | "inspiration" | "confirmation" | "manual",
     "sourceId": "optional string",
     "isFixed": "optional boolean"
@@ -383,11 +369,12 @@ Return ONLY a valid JSON array of activities in this exact format (no markdown, 
 ]
 
 Rules:
-- Include all activities from "Activities to Keep"
-- Generate 2-3 new activities per time block (morning, afternoon, evening)
-- Preserve IDs for kept activities
-- Do not duplicate activities from other days
-- All new activities should have sourceType: "ai"`;
+- Include ALL activities (fixed + flexible) in the result
+- Preserve ALL IDs, names, descriptions, types, locations, and other properties
+- Fixed activities MUST keep their original timeBlock
+- Only reshuffle flexible activities across morning, afternoon, evening time blocks
+- Do NOT create, remove, or modify any activities beyond changing timeBlock for flexible ones
+- Ensure good distribution across the three time blocks`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -398,32 +385,111 @@ Rules:
     let content = response.choices[0].message.content.trim();
     content = content.replace(/```json\s*/g, "").replace(/```/g, "").trim();
 
-    const regeneratedActivities = JSON.parse(content);
+    const reshuffledActivities = JSON.parse(content);
 
-    // Ensure all kept activities are included
-    const keptIds = new Set(activitiesToKeep.map((a) => a.id).filter(Boolean));
-    const resultIds = new Set(regeneratedActivities.map((a) => a.id).filter(Boolean));
+    // Validate that all activities are preserved
+    const existingIds = new Set(existingActivities.map((a) => a.id).filter(Boolean));
+    const resultIds = new Set(reshuffledActivities.map((a) => a.id).filter(Boolean));
 
-    activitiesToKeep.forEach((keptActivity) => {
-      if (!resultIds.has(keptActivity.id)) {
-        regeneratedActivities.push(keptActivity);
+    // Ensure all activities are included
+    if (existingIds.size !== resultIds.size) {
+      console.warn("Warning: Some activities may have been lost during reshuffle. Falling back to simple reshuffle.");
+      // Fallback: simple reshuffle keeping fixed activities in place
+      return simpleReshuffle(existingActivities, fixedActivities.map(a => a.id));
+    }
+
+    // Ensure all activities have valid timeBlock (morning, afternoon, or evening)
+    // Preserve all original properties while using reshuffled timeBlock
+    return reshuffledActivities.map((activity) => {
+      // Find original activity to preserve all properties
+      const originalActivity = existingActivities.find(a => a.id === activity.id);
+      
+      if (originalActivity) {
+        // Preserve all original properties, but use reshuffled timeBlock for flexible activities
+        const isFixed = originalActivity.isFixed === true || excludeActivityIds.includes(originalActivity.id);
+        
+        // For fixed activities, keep original timeBlock; for flexible, use reshuffled
+        const finalTimeBlock = isFixed 
+          ? originalActivity.timeBlock 
+          : (activity.timeBlock || originalActivity.timeBlock);
+        
+        // Merge original with reshuffled timeBlock, ensuring all original properties are preserved
+        const mergedActivity = {
+          ...originalActivity,
+          timeBlock: finalTimeBlock,
+        };
+
+        // Ensure timeBlock is one of the three valid options
+        if (!["morning", "afternoon", "evening"].includes(mergedActivity.timeBlock)) {
+          mergedActivity.timeBlock = determineTimeBlock(mergedActivity.time, mergedActivity.type);
+        }
+
+        // Final validation - ensure timeBlock is valid
+        if (!["morning", "afternoon", "evening"].includes(mergedActivity.timeBlock)) {
+          mergedActivity.timeBlock = "morning"; // Default fallback
+        }
+
+        return mergedActivity;
       }
-    });
 
-    // Ensure all activities have timeBlock
-    return regeneratedActivities.map((activity) => {
-      if (!activity.timeBlock) {
+      // If original not found (shouldn't happen), use reshuffled with validation
+      if (!["morning", "afternoon", "evening"].includes(activity.timeBlock)) {
         activity.timeBlock = determineTimeBlock(activity.time, activity.type);
       }
-      if (!activity.sourceType && !activity.isFixed) {
-        activity.sourceType = "ai";
+      
+      if (!["morning", "afternoon", "evening"].includes(activity.timeBlock)) {
+        activity.timeBlock = "morning"; // Default fallback
       }
+
       return activity;
     });
   } catch (error) {
     console.error("Error regenerating day activities:", error);
-    throw error;
+    // Fallback: simple reshuffle
+    try {
+      const dayKey = `day${dayNumber}`;
+      const itinerary = trip.itinerary || {};
+      const day = itinerary[dayKey] || {};
+      const existingActivities = day.activities || [];
+      const fixedActivityIds = existingActivities
+        .filter(a => a.isFixed === true || excludeActivityIds.includes(a.id))
+        .map(a => a.id);
+      return simpleReshuffle(existingActivities, fixedActivityIds);
+    } catch (fallbackError) {
+      console.error("Error in fallback reshuffle:", fallbackError);
+      // Last resort: return original activities
+      const dayKey = `day${dayNumber}`;
+      const itinerary = trip.itinerary || {};
+      const day = itinerary[dayKey] || {};
+      return day.activities || [];
+    }
   }
+};
+
+/**
+ * Simple reshuffle fallback that redistributes activities across time blocks
+ * @param {Array} activities - Activities to reshuffle
+ * @param {Array<string>} fixedActivityIds - IDs of activities that should keep their timeBlock
+ * @returns {Array} - Reshuffled activities
+ */
+const simpleReshuffle = (activities, fixedActivityIds = []) => {
+  const timeBlocks = ["morning", "afternoon", "evening"];
+  
+  // Separate fixed and flexible activities
+  const fixedActivities = activities.filter(a => fixedActivityIds.includes(a.id));
+  const flexibleActivities = activities.filter(a => !fixedActivityIds.includes(a.id));
+
+  // Shuffle flexible activities
+  const shuffled = [...flexibleActivities].sort(() => Math.random() - 0.5);
+
+  // Distribute shuffled activities across time blocks
+  const distributed = shuffled.map((activity, index) => ({
+    ...activity,
+    timeBlock: timeBlocks[index % timeBlocks.length],
+  }));
+
+  // Combine fixed (with original timeBlock) and redistributed flexible activities
+  return [...fixedActivities, ...distributed];
 };
 
 module.exports = {

@@ -621,9 +621,11 @@ const saveToVersionHistory = async (tripId, userId, dayNumber, currentActivities
     const existingVersionHistory = currentDay.versionHistory || [];
 
     // Create new version entry
+    // Use Timestamp.now() instead of serverTimestamp() because serverTimestamp() 
+    // cannot be used inside arrays in Firestore
     const newVersion = {
       activities: JSON.parse(JSON.stringify(currentActivities)), // Deep copy
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.Timestamp.now(),
     };
 
     // Add new version and keep only the last 2 versions

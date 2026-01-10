@@ -1,0 +1,16 @@
+1.	Initial Setup: The user will enter basic details like their destination, budget, and dates. The app will generate a day-by-day itinerary framework with general time blocks—like morning, afternoon, and evening with suggested duration. 
+2.	Inspiration Integration: When the user adds an inspiration link (like from TikTok), the app creates an inspiration card  (let’s discuss the best visual and user friendly option for the inspiration cards.. maybe it can be with a thumbnail image, a short title, and a suggested time block (like morning or afternoon) . The user can either manually place it in their itinerary (any day) or let the AI automatically rearrange that day to fit it in logically (have option to refresh the day).- 
+3.	Confirmation Integration: When a user syncs their Gmail and adds a travel confirmation (like a flight at 2 p.m.),  the user can app will automatically slot that into the appropriate time block and day. For example, it will place a 2 p.m. flight in the afternoon section while keeping the overall structure flexible (let’s discuss if confirmation can be auto added to the specific day, or user needs to click add to the specific day) 
+
+Overall, we’re using general time blocks (morning, afternoon, evening) rather than exact times, which makes it easier for the user to adjust, and the AI will handle fitting in confirmations automatically.
+
+1) for the scenario where the user just wants to regenerate the day without any new inspirations, you can have the AI simply reshuffle the activities for that particular day. And in the background, you can just make sure the app is smart enough not to duplicate activities that are already scheduled on other days. So it kind of has a memory of what’s already been used.
+
+2) when they add a new inspiration card like from TikTok we would  have a button on that inspiration card that says something like “Add to Day.” When they tap that, the AI can automatically rearrange that day’s schedule to fit in that new inspiration logically. So it’s really seamless for the user. They can manually edit later anyways 
+
+3), for confirmations like a flight or a reservation, you can do the same kind of thing. When they add a confirmation, the app can just automatically slot it into the right time block and then adjust the rest of the day’s schedule around it.
+
+If user is not happy with the recommendations made for the trip at all , they can delete the trip and start from scratch. One thing we can add :
+When the user decides they don’t like a particular activity that the AI suggested for that day, they could just tap on that activity and you’d show them a small menu or a little list of a few alternative options they can choose from. Maybe just a handful of other activities that fit the same general time slot or theme.
+
+So for example, if they didn’t like the AI’s suggestion for a morning museum tour, the menu might offer them a couple of other morning options like a local café visit or a walking tour instead. They just tap the one they like, and it swaps right in.
