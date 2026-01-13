@@ -3,6 +3,7 @@ const { uploadToGCS,deleteFromGCS } = require("../services/gcsService.js");
 const { analyzeVideo } = require("../services/videoAIService.js");
 const { generateAISummary } = require("../services/aiSummaryService.js");
 const { saveCategorizedContent, getAllCategories, deleteInspirationItems, filterInspirations } = require("../services/categorizationService.js");
+const { sendInspirationProcessedNotification } = require("../services/pushNotificationService.js");
 
 const analyzeTikTok = async (req, res) => {
   let gcsUri = null;
@@ -48,6 +49,16 @@ const analyzeTikTok = async (req, res) => {
       responseData = categorizationResult.savedItems && categorizationResult.savedItems.length > 0 
         ? categorizationResult.savedItems 
         : summary;
+
+      // Send push notification (fire and forget - don't wait for it)
+      const itemCount = categorizationResult.savedItems?.length || summary.length || 0;
+      if (itemCount > 0) {
+        sendInspirationProcessedNotification(userId, itemCount, "video")
+          .catch((error) => {
+            // Log error but don't fail the request
+            console.error("Failed to send push notification:", error);
+          });
+      }
     } catch (categorizationError) {
       console.error("⚠️ Error during categorization (continuing anyway):", categorizationError.message);
     }
