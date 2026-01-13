@@ -3,6 +3,7 @@ const { generateItinerary } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
 const { uploadImageToGCS } = require("../services/gcsService");
+const { sendTripItineraryCreatedNotification } = require("../services/pushNotificationService");
 
 /**
  * Create a new trip with generated itinerary
@@ -55,6 +56,14 @@ const createTrip = async (req, res) => {
 
     // Save trip with itinerary and cover photo to Firestore
     const savedTrip = await saveTrip(userId, selectedTrip, itinerary, coverPhotoUrl);
+
+    // Send push notification to user (fire and forget - don't wait for it)
+    const tripName = selectedTrip.destination || selectedTrip.name || "your trip";
+    sendTripItineraryCreatedNotification(userId, savedTrip.id, tripName)
+      .catch((error) => {
+        // Log error but don't fail the request
+        console.error("Failed to send push notification:", error);
+      });
 
     return res.status(201).json({
       success: true,

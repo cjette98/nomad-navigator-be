@@ -1,5 +1,6 @@
 const { summarizeLinkContent } = require("../services/linkSummaryService");
 const { saveCategorizedContent } = require("../services/categorizationService.js");
+const { sendInspirationProcessedNotification } = require("../services/pushNotificationService.js");
 
 const summarizeLink = async (req, res) => {
   try {
@@ -36,6 +37,16 @@ const summarizeLink = async (req, res) => {
         responseData = categorizationResult.savedItems && categorizationResult.savedItems.length > 0 
           ? categorizationResult.savedItems 
           : activities;
+
+        // Send push notification (fire and forget - don't wait for it)
+        const itemCount = categorizationResult.savedItems?.length || activities.length || 0;
+        if (itemCount > 0) {
+          sendInspirationProcessedNotification(userId, itemCount, "link")
+            .catch((error) => {
+              // Log error but don't fail the request
+              console.error("Failed to send push notification:", error);
+            });
+        }
       } catch (categorizationError) {
         console.error("⚠️ Error during categorization (continuing anyway):", categorizationError.message);
       }
