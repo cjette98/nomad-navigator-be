@@ -177,6 +177,7 @@ const saveCategorizedContent = async (contentData, sourceType, sourceUrl = null,
     let existingItems = [];
     let existingLocation = normalizedLocation;
     let matchedCategory = null;
+    let allUserCategoriesSnapshot = null;
 
     if (!categoryQuery.empty) {
       // Exact match found - use existing category
