@@ -1,5 +1,5 @@
 const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, getDayVersionHistory, rollbackToVersion, deleteTrip } = require("../services/tripService");
-const { generateItinerary } = require("../services/itineraryService");
+const { generateItinerary, generateItineraryWithCollaboration } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
 const { uploadImageToGCS } = require("../services/gcsService");
@@ -959,6 +959,116 @@ const rollbackDayVersion = async (req, res) => {
 };
 
 /**
+ * Create a trip with AI collaboration - user has full control
+ * POST /api/trips/collaborate
+ */
+const createTripWithCollaboration = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    const {
+      trip_name,
+      destination,
+      description,
+      start_date,
+      end_date,
+      durationDays,
+      travelers,
+      budget,
+      interestAndVibes,
+      inspirationIDs = [],
+      confirmationIDs = [],
+    } = req.body;
+
+    // Validate required fields
+    if (!trip_name || !destination) {
+      return res.status(400).json({
+        success: false,
+        message: "trip_name and destination are required",
+      });
+    }
+
+    // Prepare trip data
+    const tripData = {
+      trip_name,
+      destination,
+      description: description || "",
+      start_date,
+      end_date,
+      durationDays: durationDays || 0,
+      travelers: travelers || "",
+      budget: budget || "",
+      interestAndVibes: interestAndVibes || [],
+    };
+
+    // Generate itinerary with AI collaboration
+    console.log("🎯 Generating itinerary with AI collaboration...");
+    const itinerary = await generateItineraryWithCollaboration(
+      tripData,
+      confirmationIDs,
+      inspirationIDs,
+      userId
+    );
+    console.log("✅ Itinerary generated successfully");
+
+    // Generate and save trip cover photo
+    let coverPhotoUrl = null;
+    try {
+      console.log("🖼️ Generating cover photo for trip...");
+      const imageBuffer = await generateTripCoverPhoto(destination);
+      const timestamp = Date.now();
+      const filename = `trip-covers/${userId}/${timestamp}_cover.png`;
+      coverPhotoUrl = await uploadImageToGCS(imageBuffer, filename);
+      console.log("✅ Cover photo generated and saved successfully");
+    } catch (coverPhotoError) {
+      console.error("⚠️ Error generating cover photo (continuing without it):", coverPhotoError.message);
+    }
+
+    // Prepare selectedTrip object for saving (matches existing structure)
+    const selectedTrip = {
+      name: trip_name,
+      destination,
+      description,
+      start_date,
+      end_date,
+      durationDays,
+      travelers,
+      budget,
+      vibe: interestAndVibes,
+    };
+
+    // Save trip with itinerary and cover photo to Firestore
+    const savedTrip = await saveTrip(userId, selectedTrip, itinerary, coverPhotoUrl);
+
+    // Send push notification to user (fire and forget)
+    sendTripItineraryCreatedNotification(userId, savedTrip.id, trip_name)
+      .catch((error) => {
+        console.error("Failed to send push notification:", error);
+      });
+
+    return res.status(201).json({
+      success: true,
+      message: "Trip created successfully with AI collaboration",
+      data: savedTrip,
+    });
+  } catch (error) {
+    console.error("Error in createTripWithCollaboration controller:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create trip with AI collaboration",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Delete a trip
  * DELETE /api/trips/:tripId
  */
@@ -1015,6 +1125,7 @@ const deleteTripController = async (req, res) => {
 
 module.exports = {
   createTrip,
+  createTripWithCollaboration,
   getTrips,
   getTrip,
   updateActivities,

@@ -1,6 +1,7 @@
 const express = require("express");
 const {
   createTrip,
+  createTripWithCollaboration,
   getTrips,
   getTrip,
   updateActivities,
@@ -71,6 +72,117 @@ const router = express.Router();
  *               $ref: '#/components/schemas/Error'
  */
 router.post("/trips", createTrip);
+
+/**
+ * @swagger
+ * /api/trips/collaborate:
+ *   post:
+ *     summary: Create a trip with AI collaboration (user has full control)
+ *     description: Creates a new trip where the user has full control over trip details. AI helps by importing bookings from confirmations, saved inspirations, and generating an itinerary in seconds.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - trip_name
+ *               - destination
+ *             properties:
+ *               trip_name:
+ *                 type: string
+ *                 description: Name of the trip
+ *                 example: "Summer Adventure in Tokyo"
+ *               destination:
+ *                 type: string
+ *                 description: Destination of the trip
+ *                 example: "Tokyo, Japan"
+ *               description:
+ *                 type: string
+ *                 description: Description of the trip
+ *                 example: "A 7-day adventure exploring Tokyo's culture and cuisine"
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 description: Start date of the trip (YYYY-MM-DD)
+ *                 example: "2025-07-01"
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 description: End date of the trip (YYYY-MM-DD)
+ *                 example: "2025-07-07"
+ *               durationDays:
+ *                 type: integer
+ *                 description: Duration of the trip in days
+ *                 example: 7
+ *               travelers:
+ *                 type: string
+ *                 description: Number of travelers
+ *                 example: "2"
+ *               budget:
+ *                 type: string
+ *                 description: Budget for the trip
+ *                 example: "mid"
+ *               interestAndVibes:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of interests and vibes
+ *                 example: ["food", "culture", "history"]
+ *               inspirationIDs:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Optional array of inspiration item IDs to include
+ *                 example: ["abc123", "def456"]
+ *               confirmationIDs:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Optional array of confirmation IDs to include
+ *                 example: ["conf1", "conf2"]
+ *           example:
+ *             trip_name: "Summer Adventure in Tokyo"
+ *             destination: "Tokyo, Japan"
+ *             description: "A 7-day adventure exploring Tokyo's culture and cuisine"
+ *             start_date: "2025-07-01"
+ *             end_date: "2025-07-07"
+ *             durationDays: 7
+ *             travelers: "2"
+ *             budget: "mid"
+ *             interestAndVibes: ["food", "culture", "history"]
+ *             inspirationIDs: []
+ *             confirmationIDs: []
+ *     responses:
+ *       201:
+ *         description: Trip created successfully with AI collaboration
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TripResponse'
+ *       400:
+ *         description: Bad request - missing required fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.post("/trips/collaborate", createTripWithCollaboration);
 
 /**
  * @swagger
