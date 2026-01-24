@@ -6,9 +6,10 @@ const { getFcmToken } = require("./fcmTokenService");
  * @param {string} userId - The user ID to send notification to
  * @param {object} notification - Notification object with title and body
  * @param {object} data - Optional data payload
+ * @param {string} type - Notification type: 'trip' | 'inspiration' | 'confirmation'
  * @returns {Promise<boolean>} - True if sent successfully, false if user has no FCM token
  */
-const sendPushNotification = async (userId, notification, data = {}) => {
+const sendPushNotification = async (userId, notification, data = {}, type = null) => {
   try {
     // Get user's FCM token
     const fcmTokenData = await getFcmToken(userId);
@@ -29,6 +30,7 @@ const sendPushNotification = async (userId, notification, data = {}) => {
           acc[key] = String(data[key]);
           return acc;
         }, {}),
+        ...(type && { type: String(type) }),
       },
       token: fcmTokenData.fcmToken,
     };
@@ -70,10 +72,10 @@ const sendTripItineraryCreatedNotification = async (userId, tripId, tripName) =>
       body: `Your itinerary for ${destination} has been created successfully. Start planning your adventure!`,
     },
     {
-      type: "trip_itinerary_created",
       tripId: tripId,
       tripName: destination,
-    }
+    },
+    "trip"
   );
 };
 
@@ -95,10 +97,38 @@ const sendInspirationProcessedNotification = async (userId, itemCount, sourceTyp
       body: `We've extracted ${itemCount} inspiration ${itemText} from the ${sourceLabel}. Check them out!`,
     },
     {
-      type: "inspiration_processed",
       itemCount: String(itemCount),
       sourceType: sourceType,
-    }
+    },
+    "inspiration"
+  );
+};
+
+/**
+ * Send a push notification when travel confirmation is processed and saved
+ * @param {string} userId - The user ID
+ * @param {number} confirmationCount - Number of travel confirmations processed
+ * @param {string} confirmationType - Type of confirmation (e.g., "flight", "hotel", "restaurant")
+ * @returns {Promise<boolean>} - True if sent successfully
+ */
+const sendTravelConfirmationProcessedNotification = async (userId, confirmationCount, confirmationType = "travel") => {
+  const itemText = confirmationCount === 1 ? "confirmation" : "confirmations";
+  const typeLabel = confirmationType === "flight" ? "flight" : 
+                   confirmationType === "hotel" ? "hotel" : 
+                   confirmationType === "restaurant" ? "restaurant" : 
+                   confirmationType === "activity" ? "activity" : "travel";
+  
+  return await sendPushNotification(
+    userId,
+    {
+      title: "📋 Travel Confirmation Processed!",
+      body: `Your ${typeLabel} ${itemText} has been processed and saved. View your booking details now!`,
+    },
+    {
+      confirmationCount: String(confirmationCount),
+      confirmationType: confirmationType,
+    },
+    "confirmation"
   );
 };
 
@@ -106,5 +136,6 @@ module.exports = {
   sendPushNotification,
   sendTripItineraryCreatedNotification,
   sendInspirationProcessedNotification,
+  sendTravelConfirmationProcessedNotification,
 };
 

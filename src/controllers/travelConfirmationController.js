@@ -20,6 +20,7 @@ const {
 } = require("../services/travelConfirmationService");
 const { getTripById, updateDayActivities } = require("../services/tripService");
 const { arrangeDayWithConfirmation } = require("../services/autoArrangementService");
+const { sendTravelConfirmationProcessedNotification } = require("../services/pushNotificationService");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -134,6 +135,17 @@ const syncGmail = async (req, res) => {
         const confirmationsData = results.map((result) => result.structuredData);
         savedConfirmations = await saveConfirmations(userId, confirmationsData, tripId || null);
         console.log(`✅ Saved ${savedConfirmations.length} confirmations to Firestore`);
+        
+        // Send push notification for processed confirmations
+        if (savedConfirmations.length > 0) {
+          // Determine the most common category for the notification
+          const categories = confirmationsData.map(data => data.category).filter(Boolean);
+          const mostCommonCategory = categories.length > 0 ? categories[0] : "travel";
+          
+          // Send notification asynchronously (don't wait for it)
+          sendTravelConfirmationProcessedNotification(userId, savedConfirmations.length, mostCommonCategory)
+            .catch(error => console.error("Failed to send confirmation notification:", error));
+        }
       } catch (saveError) {
         console.error("Error saving confirmations to Firestore:", saveError);
         // Continue even if save fails, still return the extracted data
@@ -220,6 +232,11 @@ const uploadPDF = async (req, res) => {
     try {
       savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
       console.log("✅ Saved confirmation to Firestore");
+      
+      // Send push notification for processed confirmation
+      const category = structuredData.category || "travel";
+      sendTravelConfirmationProcessedNotification(userId, 1, category)
+        .catch(error => console.error("Failed to send confirmation notification:", error));
     } catch (saveError) {
       console.error("Error saving confirmation to Firestore:", saveError);
       // Continue even if save fails, still return the extracted data
@@ -294,6 +311,11 @@ const uploadImage = async (req, res) => {
     try {
       savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
       console.log("✅ Saved confirmation to Firestore");
+      
+      // Send push notification for processed confirmation
+      const category = structuredData.category || "travel";
+      sendTravelConfirmationProcessedNotification(userId, 1, category)
+        .catch(error => console.error("Failed to send confirmation notification:", error));
     } catch (saveError) {
       console.error("Error saving confirmation to Firestore:", saveError);
       // Continue even if save fails, still return the extracted data
