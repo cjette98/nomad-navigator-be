@@ -57,10 +57,11 @@ Example 3:
 - ✅ CORRECT: { "title": "Beach View", "description": "A scenic beach with ocean views..." } (Only use labels when OCR is empty)
 
 **🎯 CRITICAL: OUTPUT CONSISTENCY RULE 🎯**
-- If there is ONE main venue/place (identified by venue name or address), return ONLY ONE item in the array
-- Only create multiple items if there are CLEARLY DISTINCT, SEPARATE venues/places (e.g., "Restaurant A" AND "Restaurant B" mentioned separately)
-- DO NOT create separate items for: venue name vs address, venue vs view, or venue vs general location
-- If venue name and address both exist, they belong to the SAME item - combine them into ONE item
+- **MULTIPLE DISTINCT VENUES: If there are MULTIPLE distinct venue names in OCR, create ONE item for EACH distinct venue**
+- **SINGLE VENUE: If there is ONE main venue/place (identified by venue name or address), return ONLY ONE item in the array**
+- **DO NOT create separate items for: venue name vs address of the SAME venue, venue vs view of the SAME venue, or venue vs general location**
+- **If venue name and address both exist for the SAME venue, they belong to the SAME item - combine them into ONE item**
+- **Each distinct venue name should get its own item in the array**
 
 Now, generate a structured JSON array. Each element represents one distinct subject, place, or item found in the video:
 [
@@ -72,14 +73,17 @@ Now, generate a structured JSON array. Each element represents one distinct subj
 ]
 
 STRICT RULES (follow in order):
-1. **OUTPUT COUNT: If ONE venue name is detected, return array with ONE item only. Only return multiple items if there are clearly multiple distinct venues.**
-2. **If VENUE NAMES are detected above: Use the FIRST venue name as the title (e.g., "Nubeluz")**
-3. **If ADDRESSES are detected: Include in description or combine with venue name (e.g., "Nubeluz, 25 W 28TH ST")**
-4. **If both VENUE NAMES and ADDRESSES exist: Combine them into ONE item (e.g., title: "Nubeluz", description: "A rooftop venue at 25 W 28TH ST...")**
-5. **DO NOT create separate items for: venue + address, venue + view, or venue + location - these are all ONE place**
-6. **If OCR is empty or only numbers: Use transcript for specific names**
-7. **If transcript is empty: Only then use labels for generic titles**
-8. **NEVER create generic titles like "Skyscraper View" or "City View" when VENUE NAMES are detected in OCR**
+1. **OUTPUT COUNT: Create ONE item for EACH distinct venue name found in OCR. If there are 15 distinct venue names, return 15 items.**
+2. **If MULTIPLE VENUE NAMES are detected: Create separate items for each distinct venue name (e.g., "Restaurant A", "Restaurant B", "Cafe C" = 3 items)**
+3. **If ONE venue name is detected: Return array with ONE item only**
+4. **If VENUE NAMES are detected: Use each venue name as a title for its respective item**
+5. **If ADDRESSES are detected: Match addresses to their corresponding venue names and include in description (e.g., "Restaurant A", description: "A restaurant at 123 Main St...")**
+6. **If both VENUE NAMES and ADDRESSES exist: Match them logically - same venue name and nearby address = same item**
+7. **DO NOT create separate items for: venue + address of the SAME venue, venue + view of the SAME venue, or venue + location of the SAME venue**
+8. **If OCR is empty or only numbers: Use transcript for specific names**
+9. **If transcript is empty: Only then use labels for generic titles**
+10. **NEVER create generic titles like "Skyscraper View" or "City View" when VENUE NAMES are detected in OCR**
+11. **IMPORTANT: Include ALL distinct venues found in the OCR text - do not skip any**
 
 **VERY IMPORTANT: Output ONLY the valid JSON array, without any leading/trailing text, explanations, or JSON markdown (e.g., \`\`\`json).**
 `;
@@ -89,7 +93,7 @@ STRICT RULES (follow in order):
     messages: [
       { 
         role: "system", 
-        content: "You are a precise data extraction assistant. You MUST prioritize OCR-detected text (venue names, addresses) over generic labels. When OCR text contains specific venue names or addresses, use them as titles - never create generic titles based on scene labels." 
+        content: "You are a precise data extraction assistant. You MUST prioritize OCR-detected text (venue names, addresses) over generic labels. When OCR text contains multiple distinct venue names, create ONE item for EACH distinct venue. When OCR text contains specific venue names or addresses, use them as titles - never create generic titles based on scene labels. Include ALL distinct venues found in the OCR text." 
       },
       { role: "user", content: prompt }
     ],
@@ -107,66 +111,103 @@ STRICT RULES (follow in order):
 
     const results = JSON.parse(content);
     
-    // Post-processing: Ensure consistency - if we have one main venue, return only one item
-    if (Array.isArray(results) && results.length > 1) {
-      // If we detected venue names, prioritize items that use those venue names
-      if (venueNames.length > 0) {
-        const venueBasedItems = results.filter(item => 
-          venueNames.some(venueName => 
-            item.title && item.title.toLowerCase().includes(venueName.toLowerCase())
-          )
-        );
-        
-        if (venueBasedItems.length > 0) {
-          // If multiple venue-based items, take the first one (most specific)
-          // Merge address if available
-          const primaryItem = venueBasedItems[0];
-          if (addresses.length > 0 && !primaryItem.description.includes(addresses[0])) {
-            primaryItem.description = `${primaryItem.description} Located at ${addresses[0]}.`;
+    // Post-processing: Ensure all venue names from OCR are included in results
+    if (Array.isArray(results) && venueNames.length > 0) {
+      // Check which venue names are already in the results
+      const venueNamesInResults = new Set();
+      results.forEach(item => {
+        if (item.title) {
+          venueNames.forEach(venueName => {
+            if (item.title.toLowerCase().includes(venueName.toLowerCase())) {
+              venueNamesInResults.add(venueName.toLowerCase());
+            }
+          });
+        }
+      });
+      
+      // Find venue names that are missing from results
+      const missingVenueNames = venueNames.filter(venueName => 
+        !venueNamesInResults.has(venueName.toLowerCase())
+      );
+      
+      // Add missing venue names as new items
+      missingVenueNames.forEach(venueName => {
+        results.push({
+          title: venueName,
+          description: `A place mentioned in the video: ${venueName}.`,
+          category: "Other"
+        });
+      });
+      
+      // Remove duplicate items (same venue name mentioned multiple times)
+      const seenTitles = new Set();
+      const uniqueResults = results.filter(item => {
+        if (!item.title) return true;
+        const titleLower = item.title.toLowerCase();
+        // Check if this title matches a venue name (to identify duplicates)
+        const isVenueName = venueNames.some(vn => titleLower.includes(vn.toLowerCase()));
+        if (isVenueName) {
+          // For venue names, check for exact matches
+          const venueMatch = venueNames.find(vn => titleLower.includes(vn.toLowerCase()));
+          if (venueMatch) {
+            const key = venueMatch.toLowerCase();
+            if (seenTitles.has(key)) {
+              return false; // Duplicate venue, skip
+            }
+            seenTitles.add(key);
+            return true;
           }
-          return [primaryItem];
         }
-      }
-      
-      // If no venue names but we have addresses, prioritize items with addresses
-      if (addresses.length > 0 && venueNames.length === 0) {
-        const addressBasedItems = results.filter(item => 
-          addresses.some(address => 
-            (item.title && item.title.includes(address)) ||
-            (item.description && item.description.includes(address))
-          )
-        );
-        if (addressBasedItems.length > 0) {
-          return [addressBasedItems[0]];
+        // For non-venue items, check for similar titles
+        if (seenTitles.has(titleLower)) {
+          return false;
         }
-      }
+        seenTitles.add(titleLower);
+        return true;
+      });
       
-      // If multiple items but they seem to be about the same place, take the first one
-      // Check if items have similar titles or are clearly about the same venue
-      const firstItem = results[0];
-      const otherItems = results.slice(1);
-      
-      // If other items are generic (like "View", "Experience") and first item has a specific name, keep only first
-      const hasSpecificName = firstItem.title && 
-        !["View", "Experience", "Scene", "Location"].some(generic => 
-          firstItem.title.toLowerCase().includes(generic.toLowerCase())
-        );
-      
-      if (hasSpecificName) {
-        const allGeneric = otherItems.every(item => 
-          !item.title || 
-          ["View", "Experience", "Scene", "Location", "City", "Area"].some(generic => 
-            item.title.toLowerCase().includes(generic.toLowerCase())
-          )
+      // If we have only one venue name and multiple results, check if they're about the same place
+      if (venueNames.length === 1 && uniqueResults.length > 1) {
+        const venueName = venueNames[0].toLowerCase();
+        const venueItem = uniqueResults.find(item => 
+          item.title && item.title.toLowerCase().includes(venueName)
         );
         
-        if (allGeneric) {
-          return [firstItem];
+        if (venueItem) {
+          // Check if other items are generic (View, Experience, etc.) - if so, keep only venue item
+          const otherItems = uniqueResults.filter(item => item !== venueItem);
+          const allGeneric = otherItems.every(item => 
+            !item.title || 
+            ["View", "Experience", "Scene", "Location", "City", "Area"].some(generic => 
+              item.title.toLowerCase().includes(generic.toLowerCase())
+            )
+          );
+          
+          if (allGeneric) {
+            // Merge address if available
+            if (addresses.length > 0 && !venueItem.description.includes(addresses[0])) {
+              venueItem.description = `${venueItem.description || ""} Located at ${addresses[0]}.`.trim();
+            }
+            return [venueItem];
+          }
         }
       }
+      
+      // If no venue names but we have addresses and only one address, and multiple results, prioritize address-based item
+      if (addresses.length === 1 && venueNames.length === 0 && uniqueResults.length > 1) {
+        const addressBasedItem = uniqueResults.find(item => 
+          (item.title && item.title.includes(addresses[0])) ||
+          (item.description && item.description.includes(addresses[0]))
+        );
+        if (addressBasedItem) {
+          return [addressBasedItem];
+        }
+      }
+      
+      return uniqueResults;
     }
     
-    // If we have venue names but results don't include them, fix the first result
+    // If we have venue names but results don't include them, add them
     if (Array.isArray(results) && results.length > 0 && venueNames.length > 0) {
       const hasVenueInResults = results.some(item => 
         venueNames.some(venueName => 
@@ -175,33 +216,15 @@ STRICT RULES (follow in order):
       );
       
       if (!hasVenueInResults) {
-        // Replace first result with venue name
-        const correctedItem = { ...results[0] };
-        correctedItem.title = venueNames[0];
-        if (addresses.length > 0 && !correctedItem.description.includes(addresses[0])) {
-          correctedItem.description = `${correctedItem.description || ""} Located at ${addresses[0]}.`.trim();
-        }
-        return [correctedItem]; // Return only the corrected item
-      }
-    }
-    
-    // Final check: if we have one venue name and multiple results, return only one
-    if (Array.isArray(results) && results.length > 1 && venueNames.length === 1) {
-      // Find the item that uses the venue name, or use the first item and correct it
-      const venueItem = results.find(item => 
-        item.title && item.title.toLowerCase().includes(venueNames[0].toLowerCase())
-      );
-      
-      if (venueItem) {
-        return [venueItem];
-      } else {
-        // Correct the first item to use the venue name
-        const correctedItem = { ...results[0] };
-        correctedItem.title = venueNames[0];
-        if (addresses.length > 0 && !correctedItem.description.includes(addresses[0])) {
-          correctedItem.description = `${correctedItem.description || ""} Located at ${addresses[0]}.`.trim();
-        }
-        return [correctedItem];
+        // Add all venue names as items
+        const newItems = venueNames.map(venueName => ({
+          title: venueName,
+          description: addresses.length > 0 
+            ? `A place mentioned in the video: ${venueName}. Located at ${addresses[0]}.`
+            : `A place mentioned in the video: ${venueName}.`,
+          category: "Other"
+        }));
+        return newItems;
       }
     }
     
