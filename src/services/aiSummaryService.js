@@ -4,19 +4,74 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// --- OCR cleanup / normalization helpers ---
+const normalizeWhitespace = (s) => s.replace(/\s+/g, " ").trim();
+
+const stripListPrefix = (s) =>
+  s
+    // "15. Place", "7: Place", "3) Place", "14Place" (OCR sometimes drops the separator)
+    .replace(/^\s*\[?\s*\d{1,3}\s*[\.\:\)\-\]]\s*/i, "")
+    .replace(/^\s*\d{1,3}\s*/i, "")
+    .trim();
+
+const stripTrailingPunctuation = (s) => s.replace(/[\s,.;:!?\-]+$/g, "").trim();
+
+const makeKey = (s) =>
+  normalizeWhitespace(
+    s
+      .toLowerCase()
+      .replace(/[’']/g, "'")
+      .replace(/[^a-z0-9\s]/g, " ")
+  );
+
+const isLikelyPlaceName = (raw) => {
+  if (!raw) return false;
+  const s = normalizeWhitespace(raw);
+  if (s.length < 3) return false;
+
+  // Avoid pure numbers / short codes
+  if (/^\d+$/.test(s)) return false;
+
+  // Avoid shouting-y slogan text: long all-caps phrases are rarely venue names
+  const letters = s.replace(/[^A-Za-z]/g, "");
+  const upper = s.replace(/[^A-Z]/g, "").length;
+  if (letters.length >= 10 && upper / Math.max(letters.length, 1) > 0.85 && s.split(" ").length >= 3) {
+    return false;
+  }
+
+  const key = makeKey(s);
+
+  // Common non-place fragments
+  if (key.startsWith("days") || key.includes("days &") || key.includes("nights")) return false;
+
+  return true;
+};
+
+const cleanVenueCandidate = (raw) => {
+  if (!raw) return "";
+  let s = normalizeWhitespace(raw);
+  s = stripListPrefix(s);
+  s = stripTrailingPunctuation(s);
+  return normalizeWhitespace(s);
+};
+
 const generateAISummary = async (labels, texts,transcript, description) => {
   const allTranscript = transcript.join(" ");
   
   // Preprocess OCR texts to identify venue names and addresses
-  const venueNames = texts.filter(text => 
-    text && 
-    text.length > 2 && 
-    !/^\d+$/.test(text.trim()) && // Not just numbers
-    !/^\d+\s+[A-Z]/.test(text.trim()) // Not just addresses starting with numbers
+  const venueNames = Array.from(
+    new Map(
+      (texts || [])
+        .map((t) => cleanVenueCandidate(t))
+        .filter((t) => isLikelyPlaceName(t))
+        // Not an address (basic heuristic)
+        .filter((t) => !/^\d+\s+[A-Z]/.test(t.trim()))
+        .map((t) => [makeKey(t), t])
+    ).values()
   );
   
-  const addresses = texts.filter(text => 
-    text && /^\d+\s+[A-Z]/.test(text.trim()) // Matches patterns like "25 W 28TH ST"
+  const addresses = (texts || []).filter(
+    (text) => text && /^\d+\s+[A-Z]/.test(text.trim()) // Matches patterns like "25 W 28TH ST"
   );
   
   // Format OCR context for the prompt
@@ -24,68 +79,82 @@ const generateAISummary = async (labels, texts,transcript, description) => {
     ? `VENUE NAMES: ${venueNames.join(", ") || "none"}\nADDRESSES: ${addresses.join(", ") || "none"}`
     : "No specific venue names or addresses detected";
   
-  const prompt = `You are analyzing a TikTok video about travel, food, or lifestyle.
+  const prompt = `
+You are summarizing a TikTok video related to travel, food, or lifestyle.
 
-Visual and Audio Analysis Data:
-- Labels (Objects/Scenes): ${labels.join(", ") || "none"}
-- Detected Text (OCR - ALL): ${texts.join(", ") || "none"}
-- ${ocrContext}
+You are given visual, audio, and text signals extracted from the video. Your task is to identify and summarize ALL DISTINCT PLACES or VENUES mentioned or shown.
+
+INPUT DATA:
+- Visual Labels (objects/scenes): ${labels.join(", ") || "none"}
+- OCR Text (raw, unfiltered): ${texts.join(", ") || "none"}
+- OCR Context: ${ocrContext}
 - Speech Transcript: ${allTranscript || "none"}
 - Video Caption: ${description || "none"}
 
-**🚨 CRITICAL RULE: OCR TEXT IS MANDATORY WHEN PRESENT 🚨**
+====================================
+🎯 GOAL
+====================================
+Generate a clean, non-redundant summary of ALL DISTINCT places found in the video.
 
-If Detected Text (OCR) contains venue names or addresses, you MUST use them as the title. DO NOT create generic titles based on labels.
+Each place should appear EXACTLY ONCE in the output.
 
-EXAMPLES OF CORRECT BEHAVIOR:
+====================================
+🏷️ PLACE DETECTION PRIORITY
+====================================
+Use the following priority order to identify place names:
 
-Example 1:
-- OCR: ["Nubeluz", "25 W 28TH ST", "6806"]
-- Labels: ["skyscraper", "cityscape", "metropolitan area"]
-- ❌ WRONG: { "title": "Skyscraper View", "description": "An overview of skyscrapers..." }
-- ✅ CORRECT: { "title": "Nubeluz", "description": "A rooftop venue at 25 W 28TH ST featuring stunning cityscape and skyscraper views of the metropolitan area." }
+1. OCR text (highest priority)
+2. Speech transcript
+3. Video caption
+4. Visual labels (ONLY if no names exist anywhere else)
 
-Example 2:
-- OCR: ["Cesar's Cafe", "Legazpi"]
-- Labels: ["restaurant", "food"]
-- ❌ WRONG: { "title": "Restaurant Experience", "description": "A dining experience..." }
-- ✅ CORRECT: { "title": "Cesar's Cafe", "description": "A restaurant in Legazpi offering local cuisine and dining experience." }
+====================================
+🧹 OCR CLEANUP RULES
+====================================
+From OCR text:
+- KEEP: venue names, shop names, restaurants, cafes, landmarks, hotels, attractions, addresses
+- IGNORE:
+  - UI text (e.g., "ORDER HERE", "WELCOME", "OPEN DAILY")
+  - Slogans or marketing phrases
+  - Trip titles (e.g., "4 DAYS & 3 NIGHTS", "Places We Visited")
+  - Facilities (e.g., "Comfort Room", "Toilet")
+  - List numbers or prefixes (e.g., "15. Salagdoong Beach" → "Salagdoong Beach")
 
-Example 3:
-- OCR: [] (empty)
-- Labels: ["beach", "ocean"]
-- ✅ CORRECT: { "title": "Beach View", "description": "A scenic beach with ocean views..." } (Only use labels when OCR is empty)
+Deduplicate OCR results:
+- If the same place appears multiple times with small variations, keep ONE clean version.
 
-**🎯 CRITICAL: OUTPUT CONSISTENCY RULE 🎯**
-- **MULTIPLE DISTINCT VENUES: If there are MULTIPLE distinct venue names in OCR, create ONE item for EACH distinct venue**
-- **SINGLE VENUE: If there is ONE main venue/place (identified by venue name or address), return ONLY ONE item in the array**
-- **DO NOT create separate items for: venue name vs address of the SAME venue, venue vs view of the SAME venue, or venue vs general location**
-- **If venue name and address both exist for the SAME venue, they belong to the SAME item - combine them into ONE item**
-- **Each distinct venue name should get its own item in the array**
+====================================
+🔗 MERGING RULES (NO REDUNDANCY)
+====================================
+- A venue name + its address = ONE place
+- A venue + its view or surrounding area = ONE place
+- DO NOT split the same venue into multiple items
+- If multiple DISTINCT venue names exist → create ONE item per venue
+- If only ONE venue exists → return ONE item
 
-Now, generate a structured JSON array. Each element represents one distinct subject, place, or item found in the video:
+====================================
+🧱 OUTPUT STRUCTURE
+====================================
+Return a JSON ARRAY only.
+
+Each item represents ONE distinct place:
 [
   {
-    "title": "MUST use OCR text if it contains venue names/addresses, otherwise use transcript, then labels",
-    "description": "1-2 sentences incorporating the title, OCR context, labels, and transcript",
-    "category": "Restaurant | Activity | Landmark | Shop | Accomodation | Other"
+    "title": "Place or venue name (use detected name, never generic if a name exists)",
+    "description": "1–2 sentence summary combining what the place is, where it is (if known), and what happens there",
+    "category": "Restaurant | Activity | Landmark | Shop | Accommodation | Other"
   }
 ]
 
-STRICT RULES (follow in order):
-1. **OUTPUT COUNT: Create ONE item for EACH distinct venue name found in OCR. If there are 15 distinct venue names, return 15 items.**
-2. **If MULTIPLE VENUE NAMES are detected: Create separate items for each distinct venue name (e.g., "Restaurant A", "Restaurant B", "Cafe C" = 3 items)**
-3. **If ONE venue name is detected: Return array with ONE item only**
-4. **If VENUE NAMES are detected: Use each venue name as a title for its respective item**
-5. **If ADDRESSES are detected: Match addresses to their corresponding venue names and include in description (e.g., "Restaurant A", description: "A restaurant at 123 Main St...")**
-6. **If both VENUE NAMES and ADDRESSES exist: Match them logically - same venue name and nearby address = same item**
-7. **DO NOT create separate items for: venue + address of the SAME venue, venue + view of the SAME venue, or venue + location of the SAME venue**
-8. **If OCR is empty or only numbers: Use transcript for specific names**
-9. **If transcript is empty: Only then use labels for generic titles**
-10. **NEVER create generic titles like "Skyscraper View" or "City View" when VENUE NAMES are detected in OCR**
-11. **IMPORTANT: Include ALL distinct venues found in the OCR text - do not skip any**
-
-**VERY IMPORTANT: Output ONLY the valid JSON array, without any leading/trailing text, explanations, or JSON markdown (e.g., \`\`\`json).**
+====================================
+🚨 STRICT RULES
+====================================
+- Include ALL distinct places found
+- NEVER invent places
+- NEVER use generic titles if a real place name exists
+- DO NOT repeat the same place in multiple items
+- If no place names exist anywhere, create ONE generic item using labels
+- Output ONLY valid JSON (no explanations, no markdown)
 `;
 
   const response = await openai.chat.completions.create({
@@ -111,66 +180,57 @@ STRICT RULES (follow in order):
 
     const results = JSON.parse(content);
     
-    // Post-processing: Ensure all venue names from OCR are included in results
+    // Post-processing: Normalize/dedupe titles and ensure all OCR venues are present (without adding OCR-noise)
     if (Array.isArray(results) && venueNames.length > 0) {
-      // Check which venue names are already in the results
-      const venueNamesInResults = new Set();
-      results.forEach(item => {
-        if (item.title) {
-          venueNames.forEach(venueName => {
-            if (item.title.toLowerCase().includes(venueName.toLowerCase())) {
-              venueNamesInResults.add(venueName.toLowerCase());
-            }
-          });
-        }
-      });
-      
-      // Find venue names that are missing from results
-      const missingVenueNames = venueNames.filter(venueName => 
-        !venueNamesInResults.has(venueName.toLowerCase())
-      );
-      
-      // Add missing venue names as new items
-      missingVenueNames.forEach(venueName => {
-        results.push({
-          title: venueName,
-          description: `A place mentioned in the video: ${venueName}.`,
-          category: "Other"
-        });
-      });
-      
-      // Remove duplicate items (same venue name mentioned multiple times)
-      const seenTitles = new Set();
-      const uniqueResults = results.filter(item => {
-        if (!item.title) return true;
-        const titleLower = item.title.toLowerCase();
-        // Check if this title matches a venue name (to identify duplicates)
-        const isVenueName = venueNames.some(vn => titleLower.includes(vn.toLowerCase()));
-        if (isVenueName) {
-          // For venue names, check for exact matches
-          const venueMatch = venueNames.find(vn => titleLower.includes(vn.toLowerCase()));
-          if (venueMatch) {
-            const key = venueMatch.toLowerCase();
-            if (seenTitles.has(key)) {
-              return false; // Duplicate venue, skip
-            }
-            seenTitles.add(key);
-            return true;
+      // Clean result titles a bit (strip numbering prefixes if model echoes them)
+      const cleanedResults = results
+        .map((item) => {
+          if (!item || typeof item !== "object") return item;
+          const next = { ...item };
+          if (typeof next.title === "string") {
+            next.title = cleanVenueCandidate(next.title);
           }
+          return next;
+        })
+        // drop obvious non-place junk if model emitted it
+        .filter((item) => !item?.title || isLikelyPlaceName(item.title));
+
+      // Dedupe results by normalized key (prefer first richer description/category)
+      const byKey = new Map();
+      for (const item of cleanedResults) {
+        if (!item?.title) continue;
+        const key = makeKey(item.title);
+        if (!byKey.has(key)) {
+          byKey.set(key, item);
+          continue;
         }
-        // For non-venue items, check for similar titles
-        if (seenTitles.has(titleLower)) {
-          return false;
+        const existing = byKey.get(key);
+        const existingDescLen = (existing.description || "").length;
+        const candidateDescLen = (item.description || "").length;
+        if (candidateDescLen > existingDescLen) {
+          byKey.set(key, item);
         }
-        seenTitles.add(titleLower);
-        return true;
-      });
+      }
+      const uniqueResults = [...byKey.values()];
+
+      // Which OCR venues are already represented?
+      const resultKeys = new Set(uniqueResults.map((r) => makeKey(r.title)));
+      const missingVenueNames = venueNames.filter((vn) => !resultKeys.has(makeKey(vn)));
+
+      // Only add missing venues if they look like real places (venueNames is already filtered/deduped)
+      for (const vn of missingVenueNames) {
+        uniqueResults.push({
+          title: vn,
+          description: `A place mentioned in the video: ${vn}.`,
+          category: "Other",
+        });
+      }
       
       // If we have only one venue name and multiple results, check if they're about the same place
       if (venueNames.length === 1 && uniqueResults.length > 1) {
-        const venueName = venueNames[0].toLowerCase();
+        const venueName = makeKey(venueNames[0]);
         const venueItem = uniqueResults.find(item => 
-          item.title && item.title.toLowerCase().includes(venueName)
+          item.title && makeKey(item.title).includes(venueName)
         );
         
         if (venueItem) {
@@ -207,27 +267,6 @@ STRICT RULES (follow in order):
       return uniqueResults;
     }
     
-    // If we have venue names but results don't include them, add them
-    if (Array.isArray(results) && results.length > 0 && venueNames.length > 0) {
-      const hasVenueInResults = results.some(item => 
-        venueNames.some(venueName => 
-          item.title && item.title.toLowerCase().includes(venueName.toLowerCase())
-        )
-      );
-      
-      if (!hasVenueInResults) {
-        // Add all venue names as items
-        const newItems = venueNames.map(venueName => ({
-          title: venueName,
-          description: addresses.length > 0 
-            ? `A place mentioned in the video: ${venueName}. Located at ${addresses[0]}.`
-            : `A place mentioned in the video: ${venueName}.`,
-          category: "Other"
-        }));
-        return newItems;
-      }
-    }
-    
     return results;
   } catch (err) {
     console.error("❌ JSON parsing failed:", err);
@@ -237,3 +276,6 @@ STRICT RULES (follow in order):
 };
 
 module.exports = { generateAISummary };
+
+
+
