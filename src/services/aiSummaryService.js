@@ -9,7 +9,7 @@ const generateAISummary = async (labels, texts, transcript, description) => {
   const allTexts = texts?.join(", ") || "none";
 
   const prompt = `
-You are a travel content extractor and summarizer.
+You are an expert Content Analyst. Your task is to extract a comprehensive, deduplicated list of specific entities (places, or venues) mentioned in a video.
 
 INPUT DATA:
 - Visual Text (OCR): ${allTexts}
@@ -20,9 +20,11 @@ INPUT DATA:
 ====================================
 🎯 TASK
 ====================================
-1. Identify all unique travel venues, cities, or landmarks mentioned in the Input Data.
-2. For each unique venue, create a summary item.
-3. Clean up messy OCR text (e.g., convert "10.LAKE COMO" or "LAKECOMO" to "Lake Como").
+- **FILTER**: Remove UI elements (e.g., "Order Here", "Link in Bio"), time stamps, or generic metadata that aren't actual entities.
+- Identify all unique travel venues, cities, or landmarks mentioned **EXTRACT**: Identify every unique subject, venue, that is the focus of a segment in the video.
+- **CLEAN & DEDUPLICATE**: OCR data is noisy. Group variations (e.g., "Lke Como", "10. Lake Como", "LAKECOMO") into one clean, professional title (e.g., "Lake Como").
+- SCRAPE the Visual Text for every possible venue name. 
+- For each unique venue, create a summary item.
 
 ====================================
 🧱 OUTPUT FORMAT
