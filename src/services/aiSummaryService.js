@@ -29,23 +29,25 @@ INPUT DATA:
 ====================================
 🧱 OUTPUT FORMAT
 ====================================
-Return ONLY a valid JSON array:
+Return ONLY a valid JSON object with a "venues" key containing an array:
 
-[
-  {
-    "title": "Clean Venue Name",
-    "description": "Brief 1-2 sentence description based on the video context",
-    "category": "Restaurant | Activity | Landmark | Shop | Accommodation | Other"
-  }
-]
+{
+  "venues": [
+    {
+      "title": "Clean Venue Name",
+      "description": "Brief 1-2 sentence description based on the video context",
+      "category": "Restaurant | Activity | Landmark | Shop | Accommodation | Other"
+    }
+  ]
+}
 
 ====================================
 🚨 RULES
 ====================================
 - Do not include generic country names (e.g., "Italy") if specific cities/landmarks are mentioned.
 - No duplicates or "gibberish" strings from the OCR.
-- If no specific venues are found, return an empty array [].
-- Return ONLY the JSON array.
+- If no specific venues are found, return an empty array: { "venues": [] }.
+- Return ONLY the JSON object with the "venues" key.
 `.trim();
 
   try {
@@ -63,16 +65,27 @@ Return ONLY a valid JSON array:
     });
 
     const content = response.choices[0].message.content.trim();
+    console.log("🔍 Raw AI response:", content.substring(0, 500)); // Log first 500 chars for debugging
+    
     const parsedData = JSON.parse(content);
     
-    // Extract the array regardless of the key the AI uses
-    const results = Array.isArray(parsedData) ? parsedData : Object.values(parsedData)[0];
+    // Extract the array from the "venues" key, or fallback to first array value
+    let results = parsedData.venues;
+    
+    // Fallback: if "venues" key doesn't exist, try to find the first array value
+    if (!Array.isArray(results)) {
+      results = Array.isArray(parsedData) ? parsedData : Object.values(parsedData).find(val => Array.isArray(val));
+    }
 
     if (!Array.isArray(results)) {
+      console.warn("⚠️ AI response did not contain a valid array. Parsed data:", JSON.stringify(parsedData, null, 2));
       return [];
     }
 
     console.log(`✅ Extracted and summarized ${results.length} venues.`);
+    if (results.length > 0) {
+      console.log("📋 Sample venue:", JSON.stringify(results[0], null, 2));
+    }
     return results;
 
   } catch (err) {
