@@ -307,7 +307,7 @@ const uploadImage = async (req, res) => {
 
     // Save confirmation to Firestore
     let savedConfirmation = null;
-    const { tripId } = req.body;
+    const { tripId, autoSlot = true } = req.body;
     try {
       savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
       console.log("✅ Saved confirmation to Firestore");
@@ -321,6 +321,81 @@ const uploadImage = async (req, res) => {
       // Continue even if save fails, still return the extracted data
     }
 
+    // If tripId is provided, automatically link confirmation to trip days
+    let updatedTrip = null;
+    if (savedConfirmation && tripId) {
+      console.log(`🔗 Starting auto-link process for confirmation ${savedConfirmation.id} to trip ${tripId}`);
+      try {
+        // Get the trip
+        console.log(`📋 Fetching trip ${tripId}...`);
+        const trip = await getTripById(tripId, userId);
+        if (trip) {
+          console.log(`✅ Trip ${tripId} found, determining target day from confirmation date...`);
+          
+          // Determine day from confirmation date
+          let targetDay = await determineDayFromConfirmation(savedConfirmation, trip);
+          if (!targetDay) {
+            // If can't determine, default to day 1
+            console.log(`⚠️  Could not determine day from confirmation date, defaulting to day 1`);
+            targetDay = 1;
+          } else {
+            console.log(`📅 Determined target day: ${targetDay}`);
+          }
+
+          // Link confirmation to trip with days
+          console.log(`🔗 Linking confirmation ${savedConfirmation.id} to trip ${tripId}, day ${targetDay}...`);
+          await linkConfirmationsToTripWithDays(
+            [savedConfirmation.id],
+            tripId,
+            [targetDay],
+            userId
+          );
+          console.log(`✅ Linked confirmation to trip ${tripId}, day ${targetDay}`);
+
+          // Auto-slot confirmation into itinerary if autoSlot is true
+          if (autoSlot === true) {
+            console.log(`🔄 Auto-sloting confirmation into day ${targetDay}...`);
+
+            // Format confirmation as activity
+            const confirmationActivity = formatConfirmationToActivity(savedConfirmation);
+            console.log(`📝 Formatted confirmation as activity: ${confirmationActivity.name || 'Unnamed'}`);
+
+            // Arrange day with confirmation
+            console.log(`🎯 Arranging activities for day ${targetDay}...`);
+            const rearrangedActivities = await arrangeDayWithConfirmation(
+              trip,
+              targetDay,
+              confirmationActivity
+            );
+            console.log(`✅ Arranged ${rearrangedActivities.length} activity/activities for day ${targetDay}`);
+
+            // Update the trip with rearranged activities
+            console.log(`💾 Updating trip with rearranged activities...`);
+            updatedTrip = await updateDayActivities(tripId, userId, targetDay, rearrangedActivities);
+
+            console.log(`✅ Auto-sloted confirmation into day ${targetDay}`);
+          } else {
+            console.log(`⏭️  Auto-slotting disabled (autoSlot=${autoSlot}), skipping itinerary update`);
+          }
+        } else {
+          console.warn(`⚠️  Trip ${tripId} not found, skipping auto-link`);
+        }
+      } catch (linkError) {
+        console.error(`❌ Error linking confirmation to trip days:`, linkError);
+        console.error(`   Confirmation ID: ${savedConfirmation?.id}`);
+        console.error(`   Trip ID: ${tripId}`);
+        console.error(`   Error stack:`, linkError.stack);
+        // Continue even if linking fails, still return the saved confirmation
+      }
+    } else {
+      if (!savedConfirmation) {
+        console.log(`⏭️  No saved confirmation, skipping auto-link`);
+      }
+      if (!tripId) {
+        console.log(`⏭️  No tripId provided, skipping auto-link`);
+      }
+    }
+
     return res.json({
       success: true,
       data: structuredData,
@@ -330,6 +405,7 @@ const uploadImage = async (req, res) => {
             tripId: savedConfirmation.tripId,
           }
         : null,
+      ...(updatedTrip && { trip: updatedTrip }),
     });
   } catch (error) {
     console.error("Image Upload Error:", error);
@@ -547,7 +623,15 @@ const linkConfirmationsToTripDays = async (req, res) => {
     const { tripId, dayNumber } = req.params;
     const { confirmationIds, autoSlot = true } = req.body;
 
+    console.log(`🔗 Starting linkConfirmationsToTripDays process`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Trip ID: ${tripId}`);
+    console.log(`   Day Number (from params): ${dayNumber || 'not provided'}`);
+    console.log(`   Confirmation IDs: ${confirmationIds?.length || 0} provided`);
+    console.log(`   Auto-slot: ${autoSlot}`);
+
     if (!userId) {
+      console.error(`❌ Validation failed: User ID not found`);
       return res.status(401).json({
         success: false,
         message: "Unauthorized: User ID not found",
@@ -555,6 +639,7 @@ const linkConfirmationsToTripDays = async (req, res) => {
     }
 
     if (!tripId) {
+      console.error(`❌ Validation failed: Trip ID is required`);
       return res.status(400).json({
         success: false,
         message: "Trip ID is required",
@@ -562,6 +647,7 @@ const linkConfirmationsToTripDays = async (req, res) => {
     }
 
     if (!confirmationIds || !Array.isArray(confirmationIds) || confirmationIds.length === 0) {
+      console.error(`❌ Validation failed: Confirmation IDs array is required and must not be empty`);
       return res.status(400).json({
         success: false,
         message: "Confirmation IDs array is required and must not be empty",
@@ -570,29 +656,41 @@ const linkConfirmationsToTripDays = async (req, res) => {
 
     // Validate that all confirmation IDs are strings
     if (!confirmationIds.every((id) => typeof id === "string" && id.trim().length > 0)) {
+      console.error(`❌ Validation failed: All confirmation IDs must be non-empty strings`);
       return res.status(400).json({
         success: false,
         message: "All confirmation IDs must be non-empty strings",
       });
     }
 
+    console.log(`✅ Validation passed for ${confirmationIds.length} confirmation ID(s)`);
+
     // Get the trip
+    console.log(`📋 Fetching trip ${tripId}...`);
     let trip = await getTripById(tripId, userId);
     if (!trip) {
+      console.error(`❌ Trip ${tripId} not found`);
       return res.status(404).json({
         success: false,
         message: "Trip not found",
       });
     }
+    console.log(`✅ Trip ${tripId} found`);
 
     // Get confirmations by IDs
+    console.log(`📋 Fetching confirmations for user ${userId}...`);
     const { getUserConfirmations } = require("../services/travelConfirmationService");
     const allConfirmations = await getUserConfirmations(userId);
+    console.log(`   Found ${allConfirmations.length} total confirmation(s) for user`);
+    
     const confirmationsToLink = allConfirmations.filter((conf) =>
       confirmationIds.includes(conf.id)
     );
+    console.log(`   Matched ${confirmationsToLink.length} confirmation(s) from provided IDs`);
 
     if (confirmationsToLink.length === 0) {
+      console.error(`❌ No confirmations found with the provided IDs or they don't belong to this user`);
+      console.error(`   Requested IDs: ${confirmationIds.join(', ')}`);
       return res.status(404).json({
         success: false,
         message: "No confirmations found with the provided IDs or they don't belong to this user",
@@ -600,21 +698,30 @@ const linkConfirmationsToTripDays = async (req, res) => {
     }
 
     // Determine days for each confirmation
+    console.log(`📅 Determining target days for ${confirmationsToLink.length} confirmation(s)...`);
     const confirmationsByDay = {};
     
     for (const confirmation of confirmationsToLink) {
       let targetDay = dayNumber ? parseInt(dayNumber, 10) : null;
+      console.log(`   Processing confirmation ${confirmation.id}...`);
 
       // Auto-determine day from confirmation date if not provided
       if (!targetDay) {
-        targetDay = determineDayFromConfirmation(confirmation, trip);
+        console.log(`   Auto-determining day from confirmation date...`);
+        targetDay = await determineDayFromConfirmation(confirmation, trip);
         if (!targetDay) {
           // If can't determine, default to day 1
+          console.log(`   ⚠️  Could not determine day from confirmation date, defaulting to day 1`);
           targetDay = 1;
+        } else {
+          console.log(`   ✅ Determined day: ${targetDay}`);
         }
+      } else {
+        console.log(`   Using provided day number: ${targetDay}`);
       }
 
       if (isNaN(targetDay) || targetDay < 1) {
+        console.error(`❌ Invalid day number: ${targetDay}`);
         return res.status(400).json({
           success: false,
           message: "Day number must be a positive integer",
@@ -625,42 +732,61 @@ const linkConfirmationsToTripDays = async (req, res) => {
         confirmationsByDay[targetDay] = [];
       }
       confirmationsByDay[targetDay].push(confirmation);
+      console.log(`   ✅ Assigned confirmation ${confirmation.id} to day ${targetDay}`);
     }
 
+    console.log(`📊 Grouped confirmations by day:`, Object.keys(confirmationsByDay).map(day => `Day ${day}: ${confirmationsByDay[day].length} confirmation(s)`).join(', '));
+
     // Link confirmations to trip with days
+    console.log(`🔗 Linking confirmations to trip with days...`);
     const linkedConfirmations = [];
     for (const [dayStr, confirmations] of Object.entries(confirmationsByDay)) {
       const dayNum = parseInt(dayStr, 10);
       const confIds = confirmations.map((c) => c.id);
+      console.log(`   Linking ${confIds.length} confirmation(s) to day ${dayNum}...`);
 
       const linked = await linkConfirmationsToTripWithDays(confIds, tripId, [dayNum], userId);
       linkedConfirmations.push(...linked);
+      console.log(`   ✅ Linked ${linked.length} confirmation(s) to day ${dayNum}`);
 
       // Auto-slot confirmations into itinerary if autoSlot is true
       if (autoSlot === true) {
         console.log(`🔄 Auto-sloting ${confirmations.length} confirmation(s) into day ${dayNum}...`);
 
         for (const confirmation of confirmations) {
+          console.log(`   Processing confirmation ${confirmation.id} for auto-slotting...`);
+          
           // Format confirmation as activity
           const confirmationActivity = formatConfirmationToActivity(confirmation);
+          console.log(`   📝 Formatted as activity: ${confirmationActivity.name || 'Unnamed'} (${confirmationActivity.type || 'unknown type'})`);
 
           // Arrange day with confirmation
+          console.log(`   🎯 Arranging activities for day ${dayNum}...`);
           const rearrangedActivities = await arrangeDayWithConfirmation(
             trip,
             dayNum,
             confirmationActivity
           );
+          console.log(`   ✅ Arranged ${rearrangedActivities.length} activity/activities for day ${dayNum}`);
 
           // Update the trip with rearranged activities
+          console.log(`   💾 Updating trip with rearranged activities...`);
           trip = await updateDayActivities(tripId, userId, dayNum, rearrangedActivities);
+          console.log(`   ✅ Updated trip with activities for day ${dayNum}`);
         }
 
         console.log(`✅ Auto-sloted confirmations into day ${dayNum}`);
+      } else {
+        console.log(`⏭️  Auto-slotting disabled (autoSlot=${autoSlot}), skipping itinerary update for day ${dayNum}`);
       }
     }
 
     // Get updated trip if auto-slotting was performed
     const updatedTrip = autoSlot === true ? trip : null;
+
+    console.log(`✅ Successfully completed linkConfirmationsToTripDays`);
+    console.log(`   Total linked: ${linkedConfirmations.length} confirmation(s)`);
+    console.log(`   Auto-slotting: ${autoSlot ? 'enabled' : 'disabled'}`);
 
     return res.status(200).json({
       success: true,
@@ -668,7 +794,11 @@ const linkConfirmationsToTripDays = async (req, res) => {
       data: autoSlot ? updatedTrip : linkedConfirmations,
     });
   } catch (error) {
-    console.error("Error linking confirmations to trip days:", error);
+    console.error(`❌ Error linking confirmations to trip days:`, error);
+    console.error(`   Trip ID: ${req.params?.tripId}`);
+    console.error(`   User ID: ${req.userId}`);
+    console.error(`   Confirmation IDs: ${req.body?.confirmationIds?.join(', ') || 'N/A'}`);
+    console.error(`   Error stack:`, error.stack);
 
     if (error.message.includes("not found")) {
       return res.status(404).json({

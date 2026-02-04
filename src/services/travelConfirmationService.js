@@ -1,5 +1,10 @@
 const { getFirestore } = require("../config/database");
 const admin = require("firebase-admin");
+const OpenAI = require("openai");
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 const COLLECTION_NAME = "travelConfirmations";
 
@@ -398,6 +403,7 @@ const extractTimeFromConfirmation = (confirmation) => {
     if (data.checkOutTime) return data.checkOutTime;
     if (data.reservationTime) return data.reservationTime;
     if (data.bookingTime) return data.bookingTime;
+    if (data.eventTime) return data.eventTime;
     
     // Check dateTime fields
     if (data.dateTime) {
@@ -420,11 +426,74 @@ const extractTimeFromConfirmation = (confirmation) => {
 };
 
 /**
- * Extract date from confirmation data
- * @param {object} confirmation - The confirmation object
- * @returns {Date|null} - Extracted date or null
+ * Use AI to parse a date string into ISO format
+ * @param {string} dateString - The date string to parse
+ * @returns {Promise<string|null>} - ISO date string or null
  */
-const extractDateFromConfirmation = (confirmation) => {
+const parseDateWithAI = async (dateString) => {
+  try {
+    const prompt = `
+You are a date parsing assistant. Your task is to extract and normalize dates from various formats.
+
+Given a date string, return ONLY a valid ISO 8601 date string (YYYY-MM-DD format) in UTC timezone.
+If the date cannot be parsed, return null.
+
+Examples:
+- "Saturday, February 21, 2026" -> "2026-02-21"
+- "Feb 21, 2026" -> "2026-02-21"
+- "21/02/2026" -> "2026-02-21"
+- "2026-02-21" -> "2026-02-21"
+- "February 21st, 2026" -> "2026-02-21"
+
+Date to parse: "${dateString}"
+
+Return ONLY the ISO date string (YYYY-MM-DD) or "null" if unparseable. No explanations, no markdown, just the date string or "null".
+`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You parse dates and return ISO 8601 format (YYYY-MM-DD) or null.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0,
+    });
+
+    const content = completion.choices[0].message.content.trim().toLowerCase();
+    
+    // Handle "null" response
+    if (content === "null" || content === "null.") {
+      return null;
+    }
+
+    // Try to extract ISO date from response
+    const isoDateMatch = content.match(/\d{4}-\d{2}-\d{2}/);
+    if (isoDateMatch) {
+      return isoDateMatch[0];
+    }
+
+    // Try parsing the response as a date
+    const parsedDate = new Date(content);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString().split("T")[0];
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error parsing date with AI:", error);
+    return null;
+  }
+};
+
+/**
+ * Extract date from confirmation data using AI when needed
+ * @param {object} confirmation - The confirmation object
+ * @returns {Promise<Date|null>} - Extracted date or null
+ */
+const extractDateFromConfirmation = async (confirmation) => {
   try {
     const data = confirmation.confirmationData || confirmation;
     
@@ -438,22 +507,19 @@ const extractDateFromConfirmation = (confirmation) => {
       "reservationDate",
       "bookingDate",
       "dateTime",
+      "eventDate",
     ];
     
+    // Use AI parsing for each date field
     for (const field of dateFields) {
-      if (data[field]) {
-        const date = new Date(data[field]);
-        if (!isNaN(date.getTime())) {
-          return date;
+      if (data[field] && typeof data[field] === "string") {
+        const isoDate = await parseDateWithAI(data[field]);
+        if (isoDate) {
+          const date = new Date(isoDate);
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
         }
-      }
-    }
-    
-    // Try parsing date string
-    if (data.date) {
-      const date = new Date(data.date);
-      if (!isNaN(date.getTime())) {
-        return date;
       }
     }
     
@@ -468,11 +534,11 @@ const extractDateFromConfirmation = (confirmation) => {
  * Determine which day a confirmation belongs to based on its date
  * @param {object} confirmation - The confirmation object
  * @param {object} trip - The trip object
- * @returns {number|null} - Day number (1, 2, 3, etc.) or null if cannot determine
+ * @returns {Promise<number|null>} - Day number (1, 2, 3, etc.) or null if cannot determine
  */
-const determineDayFromConfirmation = (confirmation, trip) => {
+const determineDayFromConfirmation = async (confirmation, trip) => {
   try {
-    const confirmationDate = extractDateFromConfirmation(confirmation);
+    const confirmationDate = await extractDateFromConfirmation(confirmation);
     if (!confirmationDate) {
       return null;
     }

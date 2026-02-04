@@ -268,7 +268,7 @@ const generateItineraryWithCollaboration = async (tripData, confirmationIds = []
         // Format confirmations to activities and determine their days
         for (const confirmation of confirmations) {
           const activity = formatConfirmationToActivity(confirmation);
-          const day = determineDayFromConfirmation(confirmation, tempTrip) || 1;
+          const day = (await determineDayFromConfirmation(confirmation, tempTrip)) || 1;
           activity._day = day;
           confirmationActivities.push({ activity, day });
         }
