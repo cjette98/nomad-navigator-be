@@ -588,34 +588,101 @@ const formatConfirmationToActivity = (confirmation) => {
     // Determine activity type from category
     const category = (data.category || "").toLowerCase();
     let activityType = "other";
-    if (category.includes("flight") || category.includes("transport")) {
+    if (category === "flight" || category.includes("transport")) {
       activityType = "transport";
-    } else if (category.includes("hotel") || category.includes("accommodation")) {
+    } else if (category === "hotel" || category.includes("accommodation")) {
       activityType = "accommodation";
-    } else if (category.includes("restaurant") || category.includes("dining")) {
+    } else if (category === "restaurant" || category.includes("dining")) {
       activityType = "restaurant";
-    } else if (category.includes("activity") || category.includes("tour")) {
+    } else if (category === "event" || category === "ticket" || category.includes("activity") || category.includes("tour")) {
       activityType = "activity";
+    } else if (category === "car" || category.includes("rental")) {
+      activityType = "transport";
     }
     
-    // Build activity name
-    let activityName = data.title || data.name || "Travel Confirmation";
-    if (data.flightNumber) {
-      activityName = `Flight ${data.flightNumber}`;
-    } else if (data.hotelName) {
-      activityName = data.hotelName;
-    } else if (data.restaurantName) {
-      activityName = data.restaurantName;
+    // Build activity name based on category and available data
+    let activityName = "Travel Confirmation";
+    
+    if (category === "flight") {
+      if (data.flightNumber) {
+        activityName = `Flight ${data.flightNumber}`;
+      } else if (data.airline) {
+        activityName = `${data.airline} Flight`;
+      } else {
+        activityName = "Flight";
+      }
+    } else if (category === "hotel") {
+      activityName = data.hotelName || "Hotel Check-in";
+    } else if (category === "restaurant") {
+      activityName = data.restaurantName || "Restaurant Reservation";
+    } else if (category === "event" || category === "ticket") {
+      if (data.eventName) {
+        activityName = data.eventName;
+        if (category === "ticket" && data.performer) {
+          activityName = `${data.performer} - ${data.eventName}`;
+        }
+      } else if (data.performer) {
+        activityName = data.performer;
+      } else {
+        activityName = "Event";
+      }
+    } else if (category === "car") {
+      if (data.carModel && data.rentalCompany) {
+        activityName = `${data.carModel} from ${data.rentalCompany}`;
+      } else if (data.rentalCompany) {
+        activityName = `Car Rental - ${data.rentalCompany}`;
+      } else if (data.carModel) {
+        activityName = `Car Rental - ${data.carModel}`;
+      } else {
+        activityName = "Car Rental";
+      }
+    } else {
+      // Fallback to any available name field
+      activityName = data.title || data.name || data.eventName || data.hotelName || data.restaurantName || "Travel Confirmation";
     }
     
     // Build description
     let description = "";
     if (data.description) {
       description = data.description;
-    } else if (data.flightNumber) {
-      description = `Flight ${data.flightNumber}${data.departureLocation && data.arrivalLocation ? ` from ${data.departureLocation} to ${data.arrivalLocation}` : ""}`;
-    } else if (data.hotelName) {
-      description = `Check-in at ${data.hotelName}${data.location ? `, ${data.location}` : ""}`;
+    } else if (category === "flight") {
+      const parts = [];
+      if (data.flightNumber) parts.push(`Flight ${data.flightNumber}`);
+      if (data.airline) parts.push(data.airline);
+      if (data.departureAirport && data.arrivalAirport) {
+        parts.push(`${data.departureAirport} → ${data.arrivalAirport}`);
+      } else if (data.departureAirport) {
+        parts.push(`Departing from ${data.departureAirport}`);
+      } else if (data.arrivalAirport) {
+        parts.push(`Arriving at ${data.arrivalAirport}`);
+      }
+      description = parts.length > 0 ? parts.join(" - ") : activityName;
+    } else if (category === "hotel") {
+      const parts = [];
+      if (data.hotelName) parts.push(data.hotelName);
+      if (data.location) parts.push(data.location);
+      description = parts.length > 0 ? parts.join(", ") : activityName;
+    } else if (category === "restaurant") {
+      const parts = [];
+      if (data.restaurantName) parts.push(data.restaurantName);
+      if (data.location) parts.push(data.location);
+      if (data.numberOfGuests) parts.push(`${data.numberOfGuests} guest(s)`);
+      description = parts.length > 0 ? parts.join(" - ") : activityName;
+    } else if (category === "event" || category === "ticket") {
+      const parts = [];
+      if (data.eventName) parts.push(data.eventName);
+      if (data.performer) parts.push(`by ${data.performer}`);
+      if (data.venue) parts.push(`at ${data.venue}`);
+      if (data.section) parts.push(`Section: ${data.section}`);
+      if (data.seat) parts.push(`Seat: ${data.seat}`);
+      if (data.numberOfTickets) parts.push(`${data.numberOfTickets} ticket(s)`);
+      description = parts.length > 0 ? parts.join(" - ") : activityName;
+    } else if (category === "car") {
+      const parts = [];
+      if (data.rentalCompany) parts.push(data.rentalCompany);
+      if (data.carModel) parts.push(data.carModel);
+      if (data.pickupLocation) parts.push(`Pickup: ${data.pickupLocation}`);
+      description = parts.length > 0 ? parts.join(" - ") : activityName;
     } else {
       description = activityName;
     }
@@ -623,8 +690,17 @@ const formatConfirmationToActivity = (confirmation) => {
     // Determine time block
     const timeBlock = determineTimeBlock(time, activityType);
     
-    // Build location
-    const location = data.location || data.address || data.departureLocation || data.arrivalLocation || "";
+    // Build location - prioritize category-specific location fields
+    let location = "";
+    if (category === "flight") {
+      location = data.arrivalAirport || data.departureAirport || data.location || "";
+    } else if (category === "event" || category === "ticket") {
+      location = data.venue || data.location || "";
+    } else if (category === "car") {
+      location = data.pickupLocation || data.location || "";
+    } else {
+      location = data.location || data.address || data.venue || "";
+    }
     
     const activity = {
       name: activityName,
