@@ -1,4 +1,4 @@
-const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, getDayVersionHistory, rollbackToVersion, deleteTrip } = require("../services/tripService");
+const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, getDayVersionHistory, rollbackToVersion, deleteTrip, updateTripName, updateTripCoverPhotoUrl } = require("../services/tripService");
 const { generateItinerary, generateItineraryWithCollaboration } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
@@ -1123,6 +1123,167 @@ const deleteTripController = async (req, res) => {
   }
 };
 
+/**
+ * Update trip name
+ * PATCH /api/trips/:tripId/name
+ */
+const updateTripNameController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId } = req.params;
+    const { tripName } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    if (!tripName) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip name is required",
+      });
+    }
+
+    const updatedTrip = await updateTripName(tripId, userId, tripName);
+
+    return res.status(200).json({
+      success: true,
+      message: "Trip name updated successfully",
+      data: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Error in updateTripNameController:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Trip name is required")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update trip name",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update trip cover photo URL by generating a new cover photo based on trip name
+ * PATCH /api/trips/:tripId/coverPhotoUrl
+ */
+const updateTripCoverPhotoUrlController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripId) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip ID is required",
+      });
+    }
+
+    // Get the trip first to extract the trip name
+    const trip = await getTripById(tripId, userId);
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: "Trip not found",
+      });
+    }
+
+    // Extract trip name from selectedTrip
+    const tripName = trip.selectedTrip?.name || trip.selectedTrip?.destination || trip.selectedTrip?.title || "travel destination";
+
+    // Generate and upload cover photo
+    let coverPhotoUrl = null;
+    try {
+      console.log(`🖼️ Generating cover photo for trip: ${tripName}`);
+      
+      // Generate the image
+      const imageBuffer = await generateTripCoverPhoto(tripName);
+      
+      // Upload to GCS
+      const timestamp = Date.now();
+      const filename = `trip-covers/${userId}/${timestamp}_cover.png`;
+      coverPhotoUrl = await uploadImageToGCS(imageBuffer, filename);
+      
+      console.log("✅ Cover photo generated and saved successfully");
+    } catch (coverPhotoError) {
+      console.error("⚠️ Error generating cover photo:", coverPhotoError.message);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to generate cover photo",
+        error: coverPhotoError.message,
+      });
+    }
+
+    // Update the trip with the new cover photo URL
+    const updatedTrip = await updateTripCoverPhotoUrl(tripId, userId, coverPhotoUrl);
+
+    return res.status(200).json({
+      success: true,
+      message: "Trip cover photo generated and updated successfully",
+      data: updatedTrip,
+    });
+  } catch (error) {
+    console.error("Error in updateTripCoverPhotoUrlController:", error);
+
+    if (error.message.includes("not found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update trip cover photo",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createTrip,
   createTripWithCollaboration,
@@ -1139,4 +1300,6 @@ module.exports = {
   getDayVersions,
   rollbackDayVersion,
   deleteTripController,
+  updateTripNameController,
+  updateTripCoverPhotoUrlController,
 };

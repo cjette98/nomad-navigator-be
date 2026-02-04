@@ -792,6 +792,112 @@ const deleteTrip = async (tripId, userId) => {
   }
 };
 
+/**
+ * Update trip name
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {string} tripName - The new trip name
+ * @returns {Promise<object>} - The updated trip document
+ */
+const updateTripName = async (tripId, userId, tripName) => {
+  try {
+    if (!tripName || typeof tripName !== "string" || tripName.trim().length === 0) {
+      throw new Error("Trip name is required and must be a non-empty string");
+    }
+
+    const db = getFirestore();
+    const docRef = db.collection(COLLECTION_NAME).doc(tripId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      throw new Error("Trip not found");
+    }
+
+    const tripData = doc.data();
+
+    // Verify the trip belongs to the user
+    if (tripData.userId !== userId) {
+      throw new Error("Unauthorized: Trip does not belong to this user");
+    }
+
+    // Update the selectedTrip.name field
+    const updatedSelectedTrip = {
+      ...tripData.selectedTrip,
+      name: tripName.trim(),
+    };
+
+    const updateData = {
+      selectedTrip: updatedSelectedTrip,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await docRef.update(updateData);
+
+    // Return the updated data
+    const updatedDoc = await docRef.get();
+    const updatedTrip = {
+      id: updatedDoc.id,
+      ...updatedDoc.data(),
+    };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
+  } catch (error) {
+    console.error("Error updating trip name:", error);
+    throw error;
+  }
+};
+
+/**
+ * Update trip cover photo URL by generating a new cover photo based on trip name
+ * @param {string} tripId - The trip document ID
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {string} coverPhotoUrl - The new cover photo URL (GCS URI)
+ * @returns {Promise<object>} - The updated trip document
+ */
+const updateTripCoverPhotoUrl = async (tripId, userId, coverPhotoUrl) => {
+  try {
+    if (!coverPhotoUrl || typeof coverPhotoUrl !== "string" || coverPhotoUrl.trim().length === 0) {
+      throw new Error("Cover photo URL is required and must be a non-empty string");
+    }
+
+    const db = getFirestore();
+    const docRef = db.collection(COLLECTION_NAME).doc(tripId);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      throw new Error("Trip not found");
+    }
+
+    const tripData = doc.data();
+
+    // Verify the trip belongs to the user
+    if (tripData.userId !== userId) {
+      throw new Error("Unauthorized: Trip does not belong to this user");
+    }
+
+    const updateData = {
+      coverPhotoUrl: coverPhotoUrl.trim(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await docRef.update(updateData);
+
+    // Return the updated data
+    const updatedDoc = await docRef.get();
+    const updatedTrip = {
+      id: updatedDoc.id,
+      ...updatedDoc.data(),
+    };
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present
+    return await convertCoverPhotoUrl(updatedTrip);
+  } catch (error) {
+    console.error("Error updating trip cover photo URL:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   saveTrip,
   getUserTrips,
@@ -806,5 +912,7 @@ module.exports = {
   getDayVersionHistory,
   rollbackToVersion,
   deleteTrip,
+  updateTripName,
+  updateTripCoverPhotoUrl,
 };
 

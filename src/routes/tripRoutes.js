@@ -15,6 +15,8 @@ const {
   getDayVersions,
   rollbackDayVersion,
   deleteTripController,
+  updateTripNameController,
+  updateTripCoverPhotoUrlController,
 } = require("../controllers/tripController");
 const { linkConfirmationsToTripDays } = require("../controllers/travelConfirmationController");
 
@@ -923,6 +925,145 @@ router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteAct
  *               $ref: '#/components/schemas/Error'
  */
 router.patch("/trips/:tripId/status", updateTripStatusController);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/name:
+ *   patch:
+ *     summary: Update trip name
+ *     description: Updates the name of a trip.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tripName
+ *             properties:
+ *               tripName:
+ *                 type: string
+ *                 description: The new name for the trip
+ *                 example: "Summer Adventure in Tokyo"
+ *     responses:
+ *       200:
+ *         description: Trip name updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Trip name updated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       400:
+ *         description: Bad request - missing trip name or invalid format
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trip does not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Trip not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch("/trips/:tripId/name", updateTripNameController);
+
+/**
+ * @swagger
+ * /api/trips/{tripId}/coverPhotoUrl:
+ *   patch:
+ *     summary: Generate and update trip cover photo
+ *     description: Generates a new cover photo using AI based on the trip name and updates the trip's cover photo URL. The cover photo is generated using DALL-E and uploaded to Google Cloud Storage.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tripId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the trip
+ *         example: "trip123"
+ *     responses:
+ *       200:
+ *         description: Trip cover photo generated and updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Trip cover photo generated and updated successfully"
+ *                 data:
+ *                   $ref: '#/components/schemas/Trip'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trip does not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Trip not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error - failed to generate or upload cover photo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch("/trips/:tripId/coverPhotoUrl", updateTripCoverPhotoUrlController);
 
 /**
  * @swagger
