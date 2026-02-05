@@ -6,6 +6,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const DUPLICATE_CHECK_MODEL = "gpt-4o-mini";
+
 const COLLECTION_NAME = "travelConfirmations";
 
 /**
@@ -39,6 +41,123 @@ const saveConfirmation = async (userId, confirmationData, tripId = null) => {
   } catch (error) {
     console.error("Error saving travel confirmation:", error);
     throw error;
+  }
+};
+
+/**
+ * Use AI to compare a new confirmation against existing ones and detect duplicates.
+ * @param {object} newConfirmationData - The extracted booking/confirmation data for the new item
+ * @param {Array<object>} existingConfirmations - Array of existing confirmation documents for the user
+ * @returns {Promise<{isDuplicate: boolean, duplicateIds: string[]}>}
+ */
+const checkDuplicateWithAI = async (newConfirmationData, existingConfirmations) => {
+  // Short-circuit if there is nothing to compare against
+  if (!Array.isArray(existingConfirmations) || existingConfirmations.length === 0) {
+    return { isDuplicate: false, duplicateIds: [] };
+  }
+
+  // Limit the number of existing confirmations we send to the model for cost/perf
+  const maxComparisons = 50;
+  const confirmationsSample = existingConfirmations.slice(0, maxComparisons).map((conf) => ({
+    id: conf.id,
+    confirmationData: conf.confirmationData || null,
+  }));
+
+  const prompt = `
+You are a strict duplicate-detection assistant for travel confirmations.
+
+You receive:
+- ONE "new" confirmation (structured JSON)
+- An ARRAY of "existing" confirmations, each with an "id" and "confirmationData".
+
+Two confirmations should be considered duplicates if they clearly refer to the SAME booking or reservation, even if:
+- Some fields are missing on one side
+- Formatting of dates, amounts, or names is slightly different
+
+You MUST use booking identifiers and key fields such as:
+- bookingId or reservation/confirmation numbers
+- category (hotel, flight, car, restaurant, event, ticket, unknown)
+- hotelName / restaurantName / eventName / airline / flightNumber / carModel / rentalCompany
+- important dates (check-in/out, departure/arrival, eventDate, reservationDate, etc.)
+- customerName / email when available
+
+Be conservative: ONLY mark as duplicate when it is very likely the same real-world booking.
+
+Return ONLY a JSON object with this exact shape:
+{
+  "isDuplicate": boolean,
+  "duplicateIds": string[]
+}
+
+Where:
+- "isDuplicate" is true if the new confirmation clearly matches ANY of the existing ones.
+- "duplicateIds" is an array of the ids from the existing confirmations that are considered duplicates (empty array if none).
+
+New confirmation:
+${JSON.stringify(newConfirmationData, null, 2)}
+
+Existing confirmations:
+${JSON.stringify(confirmationsSample, null, 2)}
+`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: DUPLICATE_CHECK_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an assistant that determines if a new travel confirmation is a duplicate of existing confirmations and returns strict JSON only.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0,
+    });
+
+    const rawContent = completion.choices[0].message.content.trim();
+    const cleaned = rawContent
+      .replace(/```json\s*/gi, "")
+      .replace(/```/g, "")
+      .trim();
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (
+        typeof parsed.isDuplicate === "boolean" &&
+        Array.isArray(parsed.duplicateIds)
+      ) {
+        return {
+          isDuplicate: parsed.isDuplicate,
+          duplicateIds: parsed.duplicateIds.map((id) => String(id)),
+        };
+      }
+    } catch (parseError) {
+      console.error("Failed to parse AI duplicate check response:", parseError, cleaned);
+    }
+
+    // Fallback: if parsing fails, treat as non-duplicate to avoid blocking user
+    return { isDuplicate: false, duplicateIds: [] };
+  } catch (error) {
+    console.error("Error running AI duplicate check:", error);
+    // On AI failure, we do NOT block saving; treat as non-duplicate
+    return { isDuplicate: false, duplicateIds: [] };
+  }
+};
+
+/**
+ * Convenience helper: check if a confirmation is a duplicate for a specific user.
+ * @param {string} userId
+ * @param {object} confirmationData
+ * @returns {Promise<{isDuplicate: boolean, duplicateIds: string[]}>}
+ */
+const findDuplicateConfirmationForUser = async (userId, confirmationData) => {
+  try {
+    const existing = await getUserConfirmations(userId);
+    return checkDuplicateWithAI(confirmationData, existing);
+  } catch (error) {
+    console.error("Error checking duplicate confirmation for user:", error);
+    // Fail-open: do not block saving on errors
+    return { isDuplicate: false, duplicateIds: [] };
   }
 };
 
@@ -749,5 +868,7 @@ module.exports = {
   extractDateFromConfirmation,
   determineDayFromConfirmation,
   formatConfirmationToActivity,
+  checkDuplicateWithAI,
+  findDuplicateConfirmationForUser,
 };
 

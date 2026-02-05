@@ -17,6 +17,8 @@ const {
   filterConfirmations,
   formatConfirmationToActivity,
   determineDayFromConfirmation,
+  findDuplicateConfirmationForUser,
+  checkDuplicateWithAI,
 } = require("../services/travelConfirmationService");
 const { getTripById, updateDayActivities } = require("../services/tripService");
 const { arrangeDayWithConfirmation } = require("../services/autoArrangementService");
@@ -105,6 +107,17 @@ const syncGmail = async (req, res) => {
     }
 
     const results = [];
+    const nonDuplicateResults = [];
+    const duplicateItems = [];
+
+    // Fetch existing confirmations once for duplicate comparison
+    let existingConfirmations = [];
+    try {
+      existingConfirmations = await getUserConfirmations(userId);
+    } catch (existingErr) {
+      console.error("Failed to fetch existing confirmations for duplicate check:", existingErr);
+      existingConfirmations = [];
+    }
 
     for (const msg of messages) {
       const fullEmail = await gmail.users.messages.get({
@@ -118,21 +131,54 @@ const syncGmail = async (req, res) => {
 
       try {
         const structuredData = await extractBookingData(emailText);
-        results.push({
-          emailId: msg.id,
+
+        // AI-based duplicate detection against existing confirmations
+        const duplicateCheckResult = await checkDuplicateWithAI(
           structuredData,
-        });
+          existingConfirmations
+        );
+
+        if (duplicateCheckResult.isDuplicate) {
+          console.log(
+            `⚠️ Detected duplicate confirmation for email ${msg.id}. Duplicate of: ${duplicateCheckResult.duplicateIds.join(
+              ", "
+            )}`
+          );
+          duplicateItems.push({
+            emailId: msg.id,
+            structuredData,
+            duplicateIds: duplicateCheckResult.duplicateIds,
+          });
+        } else {
+          results.push({
+            emailId: msg.id,
+            structuredData,
+          });
+          nonDuplicateResults.push({
+            emailId: msg.id,
+            structuredData,
+          });
+
+          // Optionally add to in-memory existing list so subsequent messages in this sync run
+          // can also be compared against newly accepted confirmations
+          existingConfirmations.push({
+            id: `pending-${msg.id}`,
+            confirmationData: structuredData,
+          });
+        }
       } catch (error) {
         console.error(`Error processing email ${msg.id}:`, error);
         // Continue with next email even if one fails
       }
     }
 
-    // Save all extracted confirmations to Firestore
+    // Save all non-duplicate extracted confirmations to Firestore
     let savedConfirmations = [];
-    if (results.length > 0) {
+    if (nonDuplicateResults.length > 0) {
       try {
-        const confirmationsData = results.map((result) => result.structuredData);
+        const confirmationsData = nonDuplicateResults.map(
+          (result) => result.structuredData
+        );
         savedConfirmations = await saveConfirmations(userId, confirmationsData, tripId || null);
         console.log(`✅ Saved ${savedConfirmations.length} confirmations to Firestore`);
         
@@ -152,7 +198,7 @@ const syncGmail = async (req, res) => {
       }
     }
 
-    // Group by category
+    // Group by category (all processed, including ones flagged as duplicates)
     const grouped = results.reduce((acc, { structuredData }) => {
       const category = structuredData.category || "unknown";
       if (!acc[category]) acc[category] = [];
@@ -160,17 +206,30 @@ const syncGmail = async (req, res) => {
       return acc;
     }, {});
 
+    const baseResponse = {
+      totalProcessed: results.length,
+      grouped,
+      results,
+      nonDuplicateResults,
+      duplicateItems,
+      savedConfirmations: savedConfirmations.map((conf) => ({
+        id: conf.id,
+        tripId: conf.tripId,
+      })),
+    };
+
+    // If any duplicates were found, return an error with duplicate details
+    if (duplicateItems.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Some confirmations already exist in your account.",
+        data: baseResponse,
+      });
+    }
+
     return res.json({
       success: true,
-      data: {
-        total: results.length,
-        grouped,
-        results,
-        savedConfirmations: savedConfirmations.map((conf) => ({
-          id: conf.id,
-          tripId: conf.tripId,
-        })),
-      },
+      data: baseResponse,
     });
   } catch (error) {
     console.error("Gmail Sync Error:", error);
@@ -225,6 +284,20 @@ const uploadPDF = async (req, res) => {
 
     // Extract booking data using AI
     const structuredData = await extractBookingData(pdfText);
+
+    // AI duplicate detection before saving
+    const { isDuplicate, duplicateIds } = await findDuplicateConfirmationForUser(
+      userId,
+      structuredData
+    );
+
+    if (isDuplicate) {
+      return res.status(409).json({
+        success: false,
+        message: "This confirmation already exists in your account.",
+        duplicates: duplicateIds,
+      });
+    }
 
     // Save confirmation to Firestore
     let savedConfirmation = null;
@@ -304,6 +377,20 @@ const uploadImage = async (req, res) => {
       req.file.buffer,
       req.file.mimetype
     );
+
+    // AI duplicate detection before saving
+    const { isDuplicate, duplicateIds } = await findDuplicateConfirmationForUser(
+      userId,
+      structuredData
+    );
+
+    if (isDuplicate) {
+      return res.status(409).json({
+        success: false,
+        message: "This confirmation already exists in your account.",
+        duplicates: duplicateIds,
+      });
+    }
 
     // Save confirmation to Firestore
     let savedConfirmation = null;
