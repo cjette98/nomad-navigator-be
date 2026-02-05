@@ -10,6 +10,7 @@ const {
   updateActivityById,
   deleteActivityById,
   updateTripStatusController,
+  updateMultipleTripStatusesController,
   regenerateDay,
   getActivityAlternatives,
   getDayVersions,
@@ -925,6 +926,97 @@ router.delete("/trips/:tripId/days/:dayNumber/activities/:activityId", deleteAct
  *               $ref: '#/components/schemas/Error'
  */
 router.patch("/trips/:tripId/status", updateTripStatusController);
+
+/**
+ * @swagger
+ * /api/trips/status:
+ *   patch:
+ *     summary: Update status for multiple trips
+ *     description: Updates the status of multiple trips. Valid status values are draft, planning, active, completed, and archive.
+ *     tags: [Trips]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tripIds
+ *               - status
+ *             properties:
+ *               tripIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of trip IDs to update
+ *                 example: ["trip123", "trip456", "trip789"]
+ *               status:
+ *                 type: string
+ *                 enum: [draft, planning, active, completed, archive]
+ *                 description: The new status for all trips
+ *                 example: "planning"
+ *     responses:
+ *       200:
+ *         description: Trip statuses updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Successfully updated status for 3 trip(s)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Trip'
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       tripId:
+ *                         type: string
+ *                       error:
+ *                         type: string
+ *                   description: Array of errors for trips that could not be updated (if any)
+ *       400:
+ *         description: Bad request - invalid status, missing required fields, or invalid trip IDs
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - missing or invalid authentication
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - trips do not belong to user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: No trips found or no trips could be updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch("/trips/status", updateMultipleTripStatusesController);
 
 /**
  * @swagger

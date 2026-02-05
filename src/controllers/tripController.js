@@ -1,4 +1,4 @@
-const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, regenerateDayActivities, getDayVersionHistory, rollbackToVersion, deleteTrip, updateTripName, updateTripCoverPhotoUrl } = require("../services/tripService");
+const { saveTrip, getUserTrips, getTripById, updateDayActivities, addDayActivities, addInspirationItemsToTrip, updateActivity, deleteActivity, updateTripStatus, updateMultipleTripStatuses, regenerateDayActivities, getDayVersionHistory, rollbackToVersion, deleteTrip, updateTripName, updateTripCoverPhotoUrl } = require("../services/tripService");
 const { generateItinerary, generateItineraryWithCollaboration } = require("../services/itineraryService");
 const { getInspirationItemsByIds, formatInspirationItemsToActivities } = require("../services/categorizationService");
 const { generateTripCoverPhoto } = require("../services/imageGenerationService");
@@ -676,6 +676,87 @@ const updateTripStatusController = async (req, res) => {
 };
 
 /**
+ * Update status for multiple trips
+ * PATCH /api/trips/status
+ */
+const updateMultipleTripStatusesController = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { tripIds, status } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID not found",
+      });
+    }
+
+    if (!tripIds || !Array.isArray(tripIds) || tripIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Trip IDs array is required and must not be empty",
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required",
+      });
+    }
+
+    // Validate all trip IDs are strings
+    if (!tripIds.every((id) => typeof id === "string" && id.trim().length > 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "All trip IDs must be non-empty strings",
+      });
+    }
+
+    const result = await updateMultipleTripStatuses(tripIds, userId, status);
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully updated status for ${result.updatedTrips.length} trip(s)`,
+      data: result.updatedTrips,
+      ...(result.errors && result.errors.length > 0 && {
+        errors: result.errors,
+        message: `Updated ${result.updatedTrips.length} trip(s), ${result.errors.length} failed`,
+      }),
+    });
+  } catch (error) {
+    console.error("Error in updateMultipleTripStatusesController:", error);
+    
+    if (error.message.includes("not found") || error.message.includes("No trips could be updated")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Unauthorized")) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message.includes("Invalid status") || error.message.includes("Trip IDs array")) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update trip statuses",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Regenerate activities for a specific day
  * POST /api/trips/:tripId/days/:dayNumber/regenerate
  */
@@ -1295,6 +1376,7 @@ module.exports = {
   updateActivityById,
   deleteActivityById,
   updateTripStatusController,
+  updateMultipleTripStatusesController,
   regenerateDay,
   getActivityAlternatives,
   getDayVersions,

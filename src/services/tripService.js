@@ -515,6 +515,89 @@ const updateTripStatus = async (tripId, userId, status) => {
 };
 
 /**
+ * Update status for multiple trips
+ * @param {Array<string>} tripIds - Array of trip document IDs
+ * @param {string} userId - The user ID from Clerk (for authorization)
+ * @param {string} status - The new status value (draft, planning, active, completed, archive)
+ * @returns {Promise<Array<object>>} - Array of updated trip documents
+ */
+const updateMultipleTripStatuses = async (tripIds, userId, status) => {
+  try {
+    const validStatuses = ["draft", "planning", "active", "completed", "archive"];
+    
+    if (!validStatuses.includes(status)) {
+      throw new Error(`Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+    }
+
+    if (!Array.isArray(tripIds) || tripIds.length === 0) {
+      throw new Error("Trip IDs array is required and must not be empty");
+    }
+
+    const db = getFirestore();
+    const batch = db.batch();
+    const updatedTrips = [];
+    const errors = [];
+
+    // Fetch all trips first to verify ownership
+    const tripRefs = tripIds.map(id => db.collection(COLLECTION_NAME).doc(id));
+    const tripDocs = await Promise.all(tripRefs.map(ref => ref.get()));
+
+    // Process each trip
+    for (let i = 0; i < tripDocs.length; i++) {
+      const doc = tripDocs[i];
+      const tripId = tripIds[i];
+
+      if (!doc.exists) {
+        errors.push({ tripId, error: "Trip not found" });
+        continue;
+      }
+
+      const tripData = doc.data();
+
+      // Verify the trip belongs to the user
+      if (tripData.userId !== userId) {
+        errors.push({ tripId, error: "Unauthorized: Trip does not belong to this user" });
+        continue;
+      }
+
+      // Add update to batch
+      batch.update(tripRefs[i], {
+        status,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      updatedTrips.push({
+        id: tripId,
+        ...tripData,
+        status,
+      });
+    }
+
+    // If no valid trips to update, throw error
+    if (updatedTrips.length === 0) {
+      const errorMessages = errors.map(e => `${e.tripId}: ${e.error}`).join("; ");
+      throw new Error(`No trips could be updated. Errors: ${errorMessages}`);
+    }
+
+    // Commit batch update
+    await batch.commit();
+
+    // Convert coverPhotoUrl from gs:// to signed HTTP URL if present for all trips
+    const tripsWithConvertedUrls = await Promise.all(
+      updatedTrips.map(trip => convertCoverPhotoUrl(trip))
+    );
+
+    return {
+      updatedTrips: tripsWithConvertedUrls,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (error) {
+    console.error("Error updating multiple trip statuses:", error);
+    throw error;
+  }
+};
+
+/**
  * Delete a specific activity from a trip day
  * @param {string} tripId - The trip document ID
  * @param {string} userId - The user ID from Clerk (for authorization)
@@ -908,6 +991,7 @@ module.exports = {
   updateActivity,
   deleteActivity,
   updateTripStatus,
+  updateMultipleTripStatuses,
   regenerateDayActivities,
   getDayVersionHistory,
   rollbackToVersion,
