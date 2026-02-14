@@ -22,7 +22,7 @@ const {
 } = require("../services/travelConfirmationService");
 const { getTripById, updateDayActivities } = require("../services/tripService");
 const { arrangeDayWithConfirmation } = require("../services/autoArrangementService");
-const { sendTravelConfirmationProcessedNotification } = require("../services/pushNotificationService");
+const { sendTravelConfirmationProcessedNotification, sendNoConfirmationsFoundNotification } = require("../services/pushNotificationService");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -99,10 +99,12 @@ const syncGmail = async (req, res) => {
 
     const messages = listRes.data.messages || [];
     if (messages.length === 0) {
+      sendNoConfirmationsFoundNotification(userId)
+        .catch((err) => console.error("Failed to send no-confirmations push notification:", err));
       return res.json({
         success: true,
         data: [],
-        message: "No recent booking emails found.",
+        message: "No confirmations found,We didn't find any recent booking emails, You can add confirmations by uploading a PDF or photo of your booking, or try again after you receive new confirmation emails.",
       });
     }
 
@@ -152,6 +154,17 @@ const syncGmail = async (req, res) => {
         console.error("Error saving confirmations to Firestore:", saveError);
         // Continue even if save fails, still return the extracted data
       }
+    }
+
+    // No confirmations extracted from scanned emails — return friendly message so client doesn't spin or crash
+    if (results.length === 0) {
+      sendNoConfirmationsFoundNotification(userId)
+        .catch((err) => console.error("Failed to send no-confirmations push notification:", err));
+      return res.json({
+        success: true,
+        data: [],
+        message: "No confirmations found, We scanned your recent booking-related emails but couldn't extract any confirmations. You can add confirmations by uploading a PDF or photo of your booking instead.",
+      });
     }
 
     // Group by category

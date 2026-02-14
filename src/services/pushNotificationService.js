@@ -105,6 +105,24 @@ const sendInspirationProcessedNotification = async (userId, itemCount, sourceTyp
 };
 
 /**
+ * Send a push notification when Gmail scan finds no confirmations
+ * @param {string} userId - The user ID
+ * @returns {Promise<boolean>} - True if sent successfully
+ */
+const sendNoConfirmationsFoundNotification = async (userId) => {
+  const body = "We didn't find any recent booking emails, You can add confirmations by uploading a PDF or photo of your booking, or try again after you receive new confirmation emails.";
+  return await sendPushNotification(
+    userId,
+    {
+      title: "No confirmations found",
+      body,
+    },
+    { message: body },
+    "confirmation"
+  );
+};
+
+/**
  * Send a push notification when travel confirmation is processed and saved
  * @param {string} userId - The user ID
  * @param {number} confirmationCount - Number of travel confirmations processed
@@ -137,5 +155,6 @@ module.exports = {
   sendTripItineraryCreatedNotification,
   sendInspirationProcessedNotification,
   sendTravelConfirmationProcessedNotification,
+  sendNoConfirmationsFoundNotification,
 };
 
