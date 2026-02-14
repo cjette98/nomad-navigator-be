@@ -17,6 +17,8 @@ const {
   filterConfirmations,
   formatConfirmationToActivity,
   determineDayFromConfirmation,
+  findDuplicateConfirmationForUser,
+  checkDuplicateWithAI,
 } = require("../services/travelConfirmationService");
 const { getTripById, updateDayActivities } = require("../services/tripService");
 const { arrangeDayWithConfirmation } = require("../services/autoArrangementService");
@@ -223,34 +225,58 @@ const uploadPDF = async (req, res) => {
       });
     }
 
-    // Extract booking data using AI
-    const structuredData = await extractBookingData(pdfText);
+    console.log('PDF TEXT ===>', pdfText)
 
-    // Save confirmation to Firestore
-    let savedConfirmation = null;
+    // Extract booking data using AI (returns array of booking objects)
+    const extracted = await extractBookingData(pdfText);
+    const bookingsArray = Array.isArray(extracted) ? extracted : [extracted];
+
+    // Skip duplicate check and save when no bookings extracted
+    if (bookingsArray.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        savedConfirmations: [],
+      });
+    }
+
+    // AI duplicate detection before saving (check each booking)
+    for (const booking of bookingsArray) {
+      const { isDuplicate, duplicateIds } = await findDuplicateConfirmationForUser(
+        userId,
+        booking
+      );
+      if (isDuplicate) {
+        return res.status(409).json({
+          success: false,
+          message: "This confirmation already exists in your account.",
+          duplicates: duplicateIds,
+        });
+      }
+    }
+
+    // Save each booking as an individual confirmation document
+    let savedConfirmations = [];
     const { tripId } = req.body;
     try {
-      savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
-      console.log("✅ Saved confirmation to Firestore");
-      
-      // Send push notification for processed confirmation
-      const category = structuredData.category || "travel";
-      sendTravelConfirmationProcessedNotification(userId, 1, category)
+      savedConfirmations = await saveConfirmations(userId, bookingsArray, tripId || null);
+      console.log(`✅ Saved ${savedConfirmations.length} confirmation(s) to Firestore`);
+
+      const category = bookingsArray[0]?.category || "travel";
+      sendTravelConfirmationProcessedNotification(userId, savedConfirmations.length, category)
         .catch(error => console.error("Failed to send confirmation notification:", error));
     } catch (saveError) {
-      console.error("Error saving confirmation to Firestore:", saveError);
+      console.error("Error saving confirmations to Firestore:", saveError);
       // Continue even if save fails, still return the extracted data
     }
 
     return res.json({
       success: true,
-      data: structuredData,
-      savedConfirmation: savedConfirmation
-        ? {
-            id: savedConfirmation.id,
-            tripId: savedConfirmation.tripId,
-          }
-        : null,
+      data: bookingsArray,
+      savedConfirmations: savedConfirmations.map((s) => ({
+        id: s.id,
+        tripId: s.tripId,
+      })),
     });
   } catch (error) {
     console.error("PDF Upload Error:", error);

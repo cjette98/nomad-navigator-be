@@ -11,16 +11,18 @@ const openai = new OpenAI({
  */
 const extractBookingData = async (textContent) => {
   const prompt = `
-You are a data extraction assistant that reads booking-related content and outputs a clean JSON object.
-The JSON structure must adapt to the booking category.
+You are a data extraction assistant. Your task is to identify ALL bookings within the text and return them as an ARRAY of JSON objects.
+The text may contain multiple different booking types (e.g., a flight, a hotel, and an event).
+Return ONLY a valid JSON array: [ {booking1}, {booking2}, ... ]
 
-You must:
-1. Detect the category (hotel, flight, car, restaurant, event, ticket, or unknown).
-2. Return a JSON object specific to that category, with only the relevant fields.
+Rules:
+1. Detect the category for each individual item.
+2. Map each item to its specific template (Hotel, Flight, Car, Restaurant, Event, Ticket, or Unknown).
 3. If data is missing, set the value to null.
-4. Return ONLY valid JSON (no explanations or text).
+4. If no bookings are found, return an empty array [].
+5. Return ONLY valid JSON.
 
-Use the following templates:
+Templates:
 
 📘 Hotel Booking:
 {
