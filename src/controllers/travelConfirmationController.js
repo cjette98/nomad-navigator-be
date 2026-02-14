@@ -253,26 +253,29 @@ const uploadPDF = async (req, res) => {
       });
     }
 
-    // AI duplicate detection before saving (check each booking)
+    // AI duplicate detection: collect duplicates and only save non-duplicates
+    const duplicatedItems = [];
+    const bookingsToSave = [];
     for (const booking of bookingsArray) {
-      const { isDuplicate, duplicateIds } = await findDuplicateConfirmationForUser(
+      const { isDuplicate, duplicateDocuments } = await findDuplicateConfirmationForUser(
         userId,
         booking
       );
-      if (isDuplicate) {
-        return res.status(409).json({
-          success: false,
-          message: "This confirmation already exists in your account.",
-          duplicates: duplicateIds,
-        });
+      if (isDuplicate && duplicateDocuments.length > 0) {
+        duplicatedItems.push(...duplicateDocuments);
+      } else {
+        bookingsToSave.push(booking);
       }
     }
 
-    // Save each booking as an individual confirmation document
+    // Save only non-duplicate bookings
     let savedConfirmations = [];
     const { tripId } = req.body;
     try {
-      savedConfirmations = await saveConfirmations(userId, bookingsArray, tripId || null);
+      savedConfirmations =
+        bookingsToSave.length > 0
+          ? await saveConfirmations(userId, bookingsToSave, tripId || null)
+          : [];
       console.log(`✅ Saved ${savedConfirmations.length} confirmation(s) to Firestore`);
 
       const category = bookingsArray[0]?.category || "travel";
@@ -290,6 +293,7 @@ const uploadPDF = async (req, res) => {
         id: s.id,
         tripId: s.tripId,
       })),
+      duplicatedItems,
     });
   } catch (error) {
     console.error("PDF Upload Error:", error);

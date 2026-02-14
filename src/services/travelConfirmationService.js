@@ -212,15 +212,20 @@ ${JSON.stringify(confirmationsSample, null, 2)}
  * Check if a confirmation is a duplicate for a specific user.
  * @param {string} userId
  * @param {object} confirmationData
- * @returns {Promise<{isDuplicate: boolean, duplicateIds: string[]}>}
+ * @returns {Promise<{isDuplicate: boolean, duplicateIds: string[], duplicateDocuments: object[]}>}
  */
 const findDuplicateConfirmationForUser = async (userId, confirmationData) => {
   try {
     const existing = await getUserConfirmations(userId);
-    return checkDuplicateWithAI(confirmationData, existing);
+    const { isDuplicate, duplicateIds } = await checkDuplicateWithAI(confirmationData, existing);
+    const duplicateDocuments =
+      duplicateIds.length > 0
+        ? existing.filter((doc) => duplicateIds.includes(doc.id))
+        : [];
+    return { isDuplicate, duplicateIds, duplicateDocuments };
   } catch (error) {
     console.error("Error checking duplicate confirmation for user:", error);
-    return { isDuplicate: false, duplicateIds: [] };
+    return { isDuplicate: false, duplicateIds: [], duplicateDocuments: [] };
   }
 };
 
