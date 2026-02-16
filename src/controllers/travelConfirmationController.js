@@ -55,6 +55,26 @@ function extractPlainText(payload) {
   return text;
 }
 
+/** True if the confirmation has no meaningful booking data (would create an "empty" confirmation doc). */
+function isEmptyConfirmation(data) {
+  if (!data || typeof data !== "object") return true;
+  const s = (v) => (v && String(v).trim()) || "";
+  const hasId = s(data.bookingId);
+  const hasName =
+    s(data.hotelName) ||
+    s(data.restaurantName) ||
+    s(data.eventName) ||
+    s(data.airline) ||
+    s(data.rentalCompany) ||
+    s(data.carModel) ||
+    s(data.venue) ||
+    s(data.performer) ||
+    s(data.ticketType);
+  const hasSummary =
+    s(data.summary) && data.summary !== "Failed to parse AI response.";
+  return !(hasId || hasName || hasSummary);
+}
+
 /**
  * Sync Gmail and extract booking confirmations
  * POST /api/travel-confirmations/sync-gmail
@@ -108,7 +128,8 @@ const syncGmail = async (req, res) => {
       });
     }
 
-    const results = [];
+    // extractBookingData returns an array of bookings per email (empty array if none found)
+    const allExtracted = [];
 
     for (const msg of messages) {
       const fullEmail = await gmail.users.messages.get({
@@ -121,10 +142,10 @@ const syncGmail = async (req, res) => {
       if (!emailText.trim()) continue;
 
       try {
-        const structuredData = await extractBookingData(emailText);
-        results.push({
-          emailId: msg.id,
-          structuredData,
+        const items = await extractBookingData(emailText);
+        const list = Array.isArray(items) ? items : items ? [items] : [];
+        list.forEach((structuredData) => {
+          allExtracted.push({ emailId: msg.id, structuredData });
         });
       } catch (error) {
         console.error(`Error processing email ${msg.id}:`, error);
@@ -132,43 +153,41 @@ const syncGmail = async (req, res) => {
       }
     }
 
-    // Save all extracted confirmations to Firestore
-    let savedConfirmations = [];
-    if (results.length > 0) {
-      try {
-        const confirmationsData = results.map((result) => result.structuredData);
-        savedConfirmations = await saveConfirmations(userId, confirmationsData, tripId || null);
-        console.log(`✅ Saved ${savedConfirmations.length} confirmations to Firestore`);
-        
-        // Send push notification for processed confirmations
-        if (savedConfirmations.length > 0) {
-          // Determine the most common category for the notification
-          const categories = confirmationsData.map(data => data.category).filter(Boolean);
-          const mostCommonCategory = categories.length > 0 ? categories[0] : "travel";
-          
-          // Send notification asynchronously (don't wait for it)
-          sendTravelConfirmationProcessedNotification(userId, savedConfirmations.length, mostCommonCategory)
-            .catch(error => console.error("Failed to send confirmation notification:", error));
-        }
-      } catch (saveError) {
-        console.error("Error saving confirmations to Firestore:", saveError);
-        // Continue even if save fails, still return the extracted data
-      }
-    }
+    // Only keep confirmations that have meaningful data (avoid saving "empty" docs)
+    const validResults = allExtracted.filter(
+      ({ structuredData }) => !isEmptyConfirmation(structuredData)
+    );
+    const confirmationsData = validResults.map((r) => r.structuredData);
 
-    // No confirmations extracted from scanned emails — return friendly message so client doesn't spin or crash
-    if (results.length === 0) {
+    // No valid confirmations — treat like "confirmation not found", don't save anything
+    if (confirmationsData.length === 0) {
       sendNoConfirmationsFoundNotification(userId)
         .catch((err) => console.error("Failed to send no-confirmations push notification:", err));
       return res.json({
         success: true,
         data: [],
-        message: "No confirmations found, We scanned your recent booking-related emails but couldn't extract any confirmations. You can add confirmations by uploading a PDF or photo of your booking instead.",
+        message: "No confirmations found. We scanned your recent booking-related emails but couldn't extract any confirmations. You can add confirmations by uploading a PDF or photo of your booking instead.",
       });
     }
 
-    // Group by category
-    const grouped = results.reduce((acc, { structuredData }) => {
+    // Save only valid confirmations to Firestore
+    let savedConfirmations = [];
+    try {
+      savedConfirmations = await saveConfirmations(userId, confirmationsData, tripId || null);
+      console.log(`✅ Saved ${savedConfirmations.length} confirmations to Firestore`);
+
+      if (savedConfirmations.length > 0) {
+        const categories = confirmationsData.map((d) => d.category).filter(Boolean);
+        const mostCommonCategory = categories.length > 0 ? categories[0] : "travel";
+        sendTravelConfirmationProcessedNotification(userId, savedConfirmations.length, mostCommonCategory)
+          .catch((err) => console.error("Failed to send confirmation notification:", err));
+      }
+    } catch (saveError) {
+      console.error("Error saving confirmations to Firestore:", saveError);
+    }
+
+    // Group by category for response
+    const grouped = validResults.reduce((acc, { structuredData }) => {
       const category = structuredData.category || "unknown";
       if (!acc[category]) acc[category] = [];
       acc[category].push(structuredData);
@@ -178,9 +197,9 @@ const syncGmail = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        total: results.length,
+        total: validResults.length,
         grouped,
-        results,
+        results: validResults,
         savedConfirmations: savedConfirmations.map((conf) => ({
           id: conf.id,
           tripId: conf.tripId,
@@ -242,9 +261,10 @@ const uploadPDF = async (req, res) => {
 
     // Extract booking data using AI (returns array of booking objects)
     const extracted = await extractBookingData(pdfText);
-    const bookingsArray = Array.isArray(extracted) ? extracted : [extracted];
+    const rawBookings = Array.isArray(extracted) ? extracted : extracted ? [extracted] : [];
+    const bookingsArray = rawBookings.filter((b) => !isEmptyConfirmation(b));
 
-    // Skip duplicate check and save when no bookings extracted
+    // Skip duplicate check and save when no valid bookings extracted
     if (bookingsArray.length === 0) {
       return res.json({
         success: true,
@@ -347,6 +367,15 @@ const uploadImage = async (req, res) => {
       req.file.buffer,
       req.file.mimetype
     );
+
+    if (isEmptyConfirmation(structuredData)) {
+      return res.json({
+        success: true,
+        data: null,
+        savedConfirmation: null,
+        message: "No confirmation found. We couldn't extract booking details from this image.",
+      });
+    }
 
     // Save confirmation to Firestore
     let savedConfirmation = null;

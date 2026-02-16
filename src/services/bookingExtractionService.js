@@ -7,7 +7,7 @@ const openai = new OpenAI({
 /**
  * Extract structured booking data from text content using AI
  * @param {string} textContent - The text content to extract from
- * @returns {Promise<Object>} - Structured booking data
+ * @returns {Promise<Array<Object>>} - Array of structured booking objects (empty array if none found)
  */
 const extractBookingData = async (textContent) => {
   const prompt = `
@@ -138,7 +138,7 @@ Content to extract from:
       temperature: 0,
     });
 
-    let structuredData;
+    let parsed;
     try {
       const content = completion.choices[0].message.content.trim();
       // Remove markdown formatting if present
@@ -146,16 +146,15 @@ Content to extract from:
         .replace(/```json\s*/g, "")
         .replace(/```/g, "")
         .trim();
-      structuredData = JSON.parse(cleanedContent);
+      parsed = JSON.parse(cleanedContent);
     } catch (parseError) {
       console.error("JSON parsing failed:", parseError);
-      structuredData = {
-        category: "unknown",
-        summary: "Failed to parse AI response.",
-      };
+      return [];
     }
 
-    return structuredData;
+    // Prompt asks for an array; normalize so we never return a single object that gets saved as "empty nest"
+    const arr = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
+    return arr.filter((item) => item && typeof item === "object" && (item.category || item.bookingId || item.summary));
   } catch (error) {
     console.error("Error extracting booking data:", error);
     throw error;
