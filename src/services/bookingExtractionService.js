@@ -11,115 +11,150 @@ const openai = new OpenAI({
  */
 const extractBookingData = async (textContent) => {
   const prompt = `
-You are a data extraction assistant. Your task is to identify ALL bookings within the text and return them as an ARRAY of JSON objects.
-The text may contain multiple different booking types (e.g., a flight, a hotel, and an event).
+You are a precise data extraction assistant specializing in travel itineraries and booking confirmations.
+TASK: Extract ALL bookings from the provided text and return them as a JSON array.
 Return ONLY a valid JSON array: [ {booking1}, {booking2}, ... ]
 
-Rules:
-1. Detect the category for each individual item.
-2. Map each item to its specific template (Hotel, Flight, Car, Restaurant, Event, Ticket, or Unknown).
-3. If data is missing, set the value to null.
-4. If no bookings are found, return an empty array [].
-5. Return ONLY valid JSON.
+CRITICAL RULES:
+1. Extract EVERY distinct booking (flights, hotels, cars, activities, restaurants, events, tickets)
+2. A consolidated itinerary may contain multiple bookings - extract each separately
+3. Look for master/parent reference numbers AND individual booking confirmations
+4. Parse dates in ISO format (YYYY-MM-DD) when possible
+5. Extract times in 24-hour format (HH:MM) when possible
+6. If a total amount applies to the entire trip, include it only in relevant bookings or note it separately
+7. Return ONLY valid JSON array - no markdown, no explanations
+8. If no bookings found, return []
 
 Templates:
 
-📘 Hotel Booking:
-{
-  "category": "hotel",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "hotelName": string | null,
-  "checkInDate": string | null,
-  "checkOutDate": string | null,
-  "totalAmount": string | null,
-  "email": string | null,
-  "location": string | null
-}
-
-✈️ Flight Booking:
+✈️ FLIGHT:
 {
   "category": "flight",
-  "bookingId": string | null,
+  "bookingId": string | null,           // Flight confirmation or reference number
+  "masterReference": string | null,      // Parent itinerary reference if exists
   "customerName": string | null,
-  "airline": string | null,
-  "flightNumber": string | null,
-  "departureAirport": string | null,
-  "arrivalAirport": string | null,
-  "departureDate": string | null,
-  "arrivalDate": string | null,
+  "airline": string | null,              // Carrier name
+  "flightNumber": string | null,         // e.g., "UA 9087"
+  "departureAirport": string | null,     // Airport code (e.g., "IAD") or full name
+  "arrivalAirport": string | null,       // Airport code (e.g., "LIS") or full name
+  "departureDate": string | null,        // ISO format: YYYY-MM-DD
+  "departureTime": string | null,        // 24-hour format: HH:MM
+  "arrivalDate": string | null,          // ISO format: YYYY-MM-DD
+  "arrivalTime": string | null,          // 24-hour format: HH:MM
+  "seat": string | null,                 // Seat assignment
+  "cabin": string | null,                // Economy, Business, First, etc.
   "totalAmount": string | null,
   "email": string | null
 }
 
-🚗 Car Booking:
+🏨 HOTEL:
+{
+  "category": "hotel",
+  "bookingId": string | null,            // Hotel confirmation number
+  "masterReference": string | null,      // Parent itinerary reference if exists
+  "customerName": string | null,
+  "hotelName": string | null,            // Property name
+  "checkInDate": string | null,          // ISO format: YYYY-MM-DD
+  "checkInTime": string | null,          // 24-hour format: HH:MM
+  "checkOutDate": string | null,         // ISO format: YYYY-MM-DD
+  "checkOutTime": string | null,         // 24-hour format: HH:MM
+  "roomType": string | null,             // Room category/type
+  "numberOfGuests": number | null,       // Number of adults/guests
+  "location": string | null,             // City or address
+  "totalAmount": string | null,
+  "email": string | null
+}
+
+
+🚗 CAR RENTAL:
 {
   "category": "car",
-  "bookingId": string | null,
+  "bookingId": string | null,            // Rental agreement number
+  "masterReference": string | null,      // Parent itinerary reference if exists
   "customerName": string | null,
-  "carModel": string | null,
-  "rentalCompany": string | null,
-  "pickupLocation": string | null,
-  "pickupDate": string | null,
-  "dropoffDate": string | null,
+  "rentalCompany": string | null,        // e.g., "Sixt Portugal"
+  "carModel": string | null,             // Vehicle type/model
+  "pickupLocation": string | null,       // Location name or address
+  "pickupDate": string | null,           // ISO format: YYYY-MM-DD
+  "pickupTime": string | null,           // 24-hour format: HH:MM
+  "dropoffLocation": string | null,      // Location name or address
+  "dropoffDate": string | null,          // ISO format: YYYY-MM-DD
+  "dropoffTime": string | null,          // 24-hour format: HH:MM
   "totalAmount": string | null,
   "email": string | null
 }
 
-🍽️ Restaurant Booking:
+🎯 ACTIVITY/TOUR:
+{
+  "category": "activity",
+  "bookingId": string | null,            // Activity reference number
+  "masterReference": string | null,      // Parent itinerary reference if exists
+  "customerName": string | null,
+  "activityName": string | null,         // Tour or experience name
+  "provider": string | null,             // Company providing the activity
+  "activityDate": string | null,         // ISO format: YYYY-MM-DD
+  "activityTime": string | null,         // 24-hour format: HH:MM
+  "duration": string | null,             // e.g., "Full-Day", "2 hours"
+  "numberOfParticipants": number | null, // Number of people
+  "location": string | null,             // Starting point or venue
+  "totalAmount": string | null,
+  "email": string | null
+}
+
+🍽️ RESTAURANT:
 {
   "category": "restaurant",
   "bookingId": string | null,
+  "masterReference": string | null,
   "customerName": string | null,
   "restaurantName": string | null,
-  "reservationDate": string | null,
-  "reservationTime": string | null,
+  "reservationDate": string | null,      // ISO format: YYYY-MM-DD
+  "reservationTime": string | null,      // 24-hour format: HH:MM
   "numberOfGuests": number | null,
+  "location": string | null,
   "totalAmount": string | null,
   "email": string | null
 }
 
-🎉 Events Booking:
+🎫 EVENT/TICKET:
 {
   "category": "event",
   "bookingId": string | null,
+  "masterReference": string | null,
   "customerName": string | null,
-  "eventName": string | null,
-  "eventDate": string | null,
-  "eventTime": string | null,
-  "venue": string | null,
-  "location": string | null,
+  "eventName": string | null,            // Concert, show, sports event name
+  "performer": string | null,            // Artist, team, or performer
+  "venue": string | null,                // Venue name
+  "eventDate": string | null,            // ISO format: YYYY-MM-DD
+  "eventTime": string | null,            // 24-hour format: HH:MM
   "numberOfTickets": number | null,
+  "seat": string | null,                 // Seat number/location
+  "section": string | null,              // Section identifier
+  "location": string | null,             // City or full address
   "totalAmount": string | null,
   "email": string | null
 }
 
-🎫 Tickets Booking (concerts, shows, sports, theater, etc.):
-{
-  "category": "ticket",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "ticketType": string | null,
-  "eventName": string | null,
-  "performer": string | null,
-  "venue": string | null,
-  "eventDate": string | null,
-  "eventTime": string | null,
-  "numberOfTickets": number | null,
-  "seat": string | null,
-  "section": string | null,
-  "totalAmount": string | null,
-  "email": string | null
-}
-
-❓ Unknown Category:
+❓ UNKNOWN:
 {
   "category": "unknown",
   "bookingId": string | null,
+  "masterReference": string | null,
   "customerName": string | null,
-  "email": string | null,
-  "summary": string | null
+  "summary": string | null,              // Brief description of what was found
+  "email": string | null
 }
+
+EXTRACTION GUIDELINES:
+- Master Reference should be captured when present (applies to entire trip)
+- Each booking should have its own specific confirmation/reference number
+- Dates: Convert "June 14, 2026" → "2026-06-14"
+- Times: Convert "5:40 PM" → "17:40", "6:20 AM" → "06:20"
+- Handle multi-day arrivals ("+1 day" notations)
+- Activities/tours should use "activity" category
+- Extract participant/guest counts as numbers not strings
+- Preserve location details (airport codes, city names, addresses)
+
 
 Content to extract from:
 """${textContent}"""
