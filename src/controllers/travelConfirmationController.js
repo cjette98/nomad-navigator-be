@@ -377,20 +377,32 @@ const uploadImage = async (req, res) => {
       });
     }
 
-    // Save confirmation to Firestore
+    // AI duplicate detection: collect duplicates and only save non-duplicates
+    const duplicatedItems = [];
+    const { isDuplicate, duplicateDocuments } = await findDuplicateConfirmationForUser(
+      userId,
+      structuredData
+    );
+    if (isDuplicate && duplicateDocuments.length > 0) {
+      duplicatedItems.push(...duplicateDocuments);
+    }
+
+    // Save only if not a duplicate
     let savedConfirmation = null;
     const { tripId } = req.body;
-    try {
-      savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
-      console.log("✅ Saved confirmation to Firestore");
-      
-      // Send push notification for processed confirmation
-      const category = structuredData.category || "travel";
-      sendTravelConfirmationProcessedNotification(userId, 1, category)
-        .catch(error => console.error("Failed to send confirmation notification:", error));
-    } catch (saveError) {
-      console.error("Error saving confirmation to Firestore:", saveError);
-      // Continue even if save fails, still return the extracted data
+    if (duplicatedItems.length === 0) {
+      try {
+        savedConfirmation = await saveConfirmation(userId, structuredData, tripId || null);
+        console.log("✅ Saved confirmation to Firestore");
+
+        // Send push notification for processed confirmation
+        const category = structuredData.category || "travel";
+        sendTravelConfirmationProcessedNotification(userId, 1, category)
+          .catch(error => console.error("Failed to send confirmation notification:", error));
+      } catch (saveError) {
+        console.error("Error saving confirmation to Firestore:", saveError);
+        // Continue even if save fails, still return the extracted data
+      }
     }
 
     return res.json({
@@ -402,6 +414,7 @@ const uploadImage = async (req, res) => {
             tripId: savedConfirmation.tripId,
           }
         : null,
+      duplicatedItems,
     });
   } catch (error) {
     console.error("Image Upload Error:", error);

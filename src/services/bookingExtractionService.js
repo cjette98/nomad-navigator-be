@@ -205,6 +205,10 @@ Content to extract from:
 const extractBookingDataFromImage = async (imageBuffer, mimeType) => {
   const base64Image = imageBuffer.toString("base64");
 
+  console.log('BASE64 IMAGE ===>', base64Image)
+  console.log('BASE64 IMAGE ===>', mimeType)
+
+
   const prompt = `
 You are a precise data extraction assistant specializing in travel itineraries and booking confirmations.
 TASK: Extract ALL bookings from the provided text and return them as a JSON array.
@@ -386,7 +390,9 @@ EXTRACTION GUIDELINES:
         .replace(/```json\s*/g, "")
         .replace(/```/g, "")
         .trim();
-      structuredData = JSON.parse(cleanedContent);
+      const parsed = JSON.parse(cleanedContent);
+      // AI may return a single object or an array of bookings; controller expects one object
+      structuredData = Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : parsed;
     } catch (parseError) {
       console.error("JSON parsing failed:", parseError);
       structuredData = {
