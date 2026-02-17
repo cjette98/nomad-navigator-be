@@ -5,7 +5,6 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerSpec = require("./config/swagger");
 const { google } = require("googleapis");
 const rateLimit = require("./middleware/rateLimit");
-const OpenAI = require("openai");
 const videoRoutes = require("./routes/videoRoutes");
 const linkRoutes = require("./routes/linkRoutes");
 const travelPreferenceRoutes = require("./routes/travelPreferenceRoutes");
@@ -14,6 +13,7 @@ const tripRoutes = require("./routes/tripRoutes");
 const travelConfirmationRoutes = require("./routes/travelConfirmationRoutes");
 const fcmTokenRoutes = require("./routes/fcmTokenRoutes");
 const { initializeFirebase } = require("./config/database");
+const { syncGmail } = require("./controllers/travelConfirmationController");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -94,28 +94,6 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Helper: recursively extract plain text from Gmail message
-function extractPlainText(payload) {
-  let text = "";
-  if (!payload) return text;
-
-  if (payload.mimeType === "text/plain" && payload.body?.data) {
-    text += Buffer.from(payload.body.data, "base64").toString("utf-8");
-  }
-
-  if (payload.parts) {
-    for (const part of payload.parts) {
-      text += extractPlainText(part);
-    }
-  }
-
-  return text;
-}
-
 // 1️⃣ Redirect user to Gmail Consent Screen
 app.get("/gmail/auth", (req, res) => {
   const url = oauth2Client.generateAuthUrl({
@@ -166,247 +144,23 @@ app.get("/auth/google/callback", async (req, res) => {
   }
 });
 
-// 3️⃣ Sync Booking Confirmation Emails + Use OpenAI
+// 3️⃣ Sync Booking Confirmation Emails (uses travelConfirmationController.syncGmail)
 app.get("/gmail/sync", async (req, res) => {
-  try {
-    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
-    const listRes = await gmail.users.messages.list({
-      userId: "me",
-      q: "subject:(booking OR reservation OR confirmation OR itinerary OR ticket) newer_than:7d",
-      maxResults: 5,
-    });
-
-    const messages = listRes.data.messages || [];
-    if (messages.length === 0)
-      return res.send("<h3>No recent booking emails found.</h3>");
-
-    const results = [];
-
-    for (const msg of messages) {
-      const fullEmail = await gmail.users.messages.get({
-        userId: "me",
-        id: msg.id,
-        format: "full",
-      });
-
-      const emailText = extractPlainText(fullEmail.data.payload);
-      if (!emailText.trim()) continue;
-
-      const prompt = `
-You are a data extraction assistant that reads booking-related emails and outputs a clean JSON object.
-The JSON structure must adapt to the booking category.
-
-You must:
-1. Detect the category (hotel, flight, car, restaurant, or unknown).
-2. Return a JSON object specific to that category, with only the relevant fields.
-3. If data is missing, set the value to null.
-4. Return ONLY valid JSON (no explanations or text).
-
-Use the following templates:
-
-📘 Hotel Booking:
-{
-  "category": "hotel",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "hotelName": string | null,
-  "checkInDate": string | null,
-  "checkOutDate": string | null,
-  "totalAmount": string | null,
-  "email": string | null,
-  "location": string | null
-}
-
-✈️ Flight Booking:
-{
-  "category": "flight",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "airline": string | null,
-  "flightNumber": string | null,
-  "departureAirport": string | null,
-  "arrivalAirport": string | null,
-  "departureDate": string | null,
-  "arrivalDate": string | null,
-  "totalAmount": string | null,
-  "email": string | null
-}
-
-🚗 Car Booking:
-{
-  "category": "car",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "carModel": string | null,
-  "rentalCompany": string | null,
-  "pickupLocation": string | null,
-  "pickupDate": string | null,
-  "dropoffDate": string | null,
-  "totalAmount": string | null,
-  "email": string | null
-}
-
-🍽️ Restaurant Booking:
-{
-  "category": "restaurant",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "restaurantName": string | null,
-  "reservationDate": string | null,
-  "reservationTime": string | null,
-  "numberOfGuests": number | null,
-  "totalAmount": string | null,
-  "email": string | null
-}
-
-❓ Unknown Category:
-{
-  "category": "unknown",
-  "bookingId": string | null,
-  "customerName": string | null,
-  "email": string | null,
-  "summary": string | null
-}
-
-Email content:
-"""${emailText}"""
-`;
-
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You extract structured booking data from emails.",
-          },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0,
-      });
-
-      let structuredData;
-      try {
-        structuredData = JSON.parse(completion.choices[0].message.content);
-      } catch {
-        structuredData = {
-          category: "unknown",
-          summary: "Failed to parse response.",
-        };
-      }
-
-      results.push({ emailId: msg.id, structuredData });
-    }
-
-    const grouped = results.reduce((acc, { structuredData }) => {
-      const category = structuredData.category || "unknown";
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(structuredData);
-      return acc;
-    }, {});
-
-    const renderCategory = (title, items) => {
-      const renderItem = (b) => {
-        switch (b.category) {
-          case "hotel":
-            return `
-              <div class="card">
-                <h3>${b.hotelName || "Hotel Booking"}</h3>
-                <p><strong>Customer:</strong> ${b.customerName || "-"}</p>
-                <p><strong>Check-in:</strong> ${b.checkInDate || "-"}</p>
-                <p><strong>Check-out:</strong> ${b.checkOutDate || "-"}</p>
-                <p><strong>Total:</strong> ${b.totalAmount || "-"}</p>
-                <p><strong>Email:</strong> ${b.email || "-"}</p>
-              </div>`;
-          case "flight":
-            return `
-              <div class="card">
-                <h3>${b.airline || "Flight Booking"}</h3>
-                <p><strong>Customer:</strong> ${b.customerName || "-"}</p>
-                <p><strong>Flight No:</strong> ${b.flightNumber || "-"}</p>
-                <p><strong>Departure:</strong> ${b.departureAirport || "-"}</p>
-                <p><strong>Arrival:</strong> ${b.arrivalAirport || "-"}</p>
-                <p><strong>Date:</strong> ${b.departureDate || "-"}</p>
-                <p><strong>Total:</strong> ${b.totalAmount || "-"}</p>
-              </div>`;
-          case "car":
-            return `
-              <div class="card">
-                <h3>${b.rentalCompany || "Car Booking"}</h3>
-                <p><strong>Customer:</strong> ${b.customerName || "-"}</p>
-                <p><strong>Car Model:</strong> ${b.carModel || "-"}</p>
-                <p><strong>Pickup:</strong> ${b.pickupLocation || "-"}</p>
-                <p><strong>Pickup Date:</strong> ${b.pickupDate || "-"}</p>
-                <p><strong>Drop-off:</strong> ${b.dropoffDate || "-"}</p>
-                <p><strong>Total:</strong> ${b.totalAmount || "-"}</p>
-              </div>`;
-          case "restaurant":
-            return `
-              <div class="card">
-                <h3>${b.restaurantName || "Restaurant Booking"}</h3>
-                <p><strong>Customer:</strong> ${b.customerName || "-"}</p>
-                <p><strong>Reservation Date:</strong> ${
-                  b.reservationDate || "-"
-                }</p>
-                <p><strong>Time:</strong> ${b.reservationTime || "-"}</p>
-                <p><strong>Guests:</strong> ${b.numberOfGuests || "-"}</p>
-                <p><strong>Total:</strong> ${b.totalAmount || "-"}</p>
-              </div>`;
-          default:
-            return `
-              <div class="card">
-                <h3>Unknown Booking</h3>
-                <p><strong>Customer:</strong> ${b.customerName || "-"}</p>
-                <p><strong>Email:</strong> ${b.email || "-"}</p>
-                <p><strong>Summary:</strong> ${b.summary || "Not available"}</p>
-              </div>`;
-        }
-      };
-
-      return `
-        <h2>${title.toUpperCase()} BOOKINGS</h2>
-        ${items.map(renderItem).join("")}
-      `;
-    };
-
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Booking Summaries</title>
-        <style>
-          body { font-family: Arial, sans-serif; background: #f9fafb; padding: 40px; color: #333; }
-          h1 { color: #2b7de9; }
-          h2 { color: #444; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 30px; }
-          .card {
-            background: white; padding: 15px 20px; border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px;
-          }
-          .card h3 { margin: 0 0 8px; color: #2b7de9; }
-          button {
-            background: #2b7de9; color: white; border: none; padding: 12px 20px;
-            border-radius: 6px; cursor: pointer; font-size: 16px;
-          }
-          button:hover { background: #1a5fd0; }
-        </style>
-      </head>
-      <body>
-        <h1>📬 Booking Confirmation from Gmail</h1>
-        ${Object.entries(grouped)
-          .map(([cat, data]) => renderCategory(cat, data))
-          .join("")}
-        <br><br>
-        <form action="/gmail/sync" method="GET">
-          <button type="submit">🔁 Resync Emails</button>
-        </form>
-      </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error("Gmail Sync Error:", error);
-    res.status(500).send("Failed to sync Gmail messages.");
+  const credentials = oauth2Client.credentials;
+  if (!credentials?.access_token) {
+    return res.redirect("/gmail/auth");
   }
+
+  const syncReq = {
+    userId: req.userId || process.env.GMAIL_DEMO_USER_ID || "gmail-demo-user",
+    body: {
+      accessToken: credentials.access_token,
+      refreshToken: credentials.refresh_token || undefined,
+      tripId: req.query.tripId || undefined,
+    },
+  };
+
+  return syncGmail(syncReq, res);
 });
 
 // Root route with BOTH UIs

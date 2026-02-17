@@ -76,6 +76,17 @@ router.get("/filter", getFilteredConfirmations);
  *               refreshToken:
  *                 type: string
  *                 description: Gmail OAuth refresh token (optional)
+ *               tripId:
+ *                 type: string
+ *                 description: Optional trip ID to link confirmations to
+ *               start_date:
+ *                 type: string
+ *                 format: date
+ *                 description: "Start of date range for Gmail search (YYYY-MM-DD). Used as after in Gmail API q."
+ *               end_date:
+ *                 type: string
+ *                 format: date
+ *                 description: "End of date range for Gmail search (YYYY-MM-DD). Used as before in Gmail API q."
  *     responses:
  *       200:
  *         description: Successfully synced and extracted booking confirmations

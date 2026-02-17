@@ -93,7 +93,7 @@ const syncGmail = async (req, res) => {
     // Get OAuth tokens from request (should be stored per user in production)
     // For now, we'll use the existing oauth2Client setup
     // In production, you'd retrieve tokens from database based on userId
-    const { accessToken, refreshToken, tripId } = req.body;
+    const { accessToken, refreshToken, tripId, start_date, end_date } = req.body;
 
     if (!accessToken) {
       return res.status(400).json({
@@ -111,10 +111,16 @@ const syncGmail = async (req, res) => {
 
     const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
+    // Gmail API q parameter: after/before use YYYY/MM/DD per https://developers.google.com/workspace/gmail/api/guides/filtering
+    const baseQuery = `(subject:(booking OR reservation OR confirmation OR itinerary OR ticket OR booked OR "e-ticket" OR voucher OR receipt OR invoice OR "boarding pass" OR "check-in" OR "booking reference" OR "confirmation number" OR "reservation number" OR "your order" OR admission OR tour OR experience) OR from:(noreply OR reservations OR bookings OR tickets))`;
+    const dateFilter =
+      start_date && end_date
+        ? ` after:${start_date.replace(/-/g, "/")} before:${end_date.replace(/-/g, "/")}`
+        : " newer_than:7d";
     const listRes = await gmail.users.messages.list({
       userId: "me",
-      q: "subject:(booking OR reservation OR confirmation OR itinerary OR ticket) newer_than:7d",
-      maxResults: 10,
+      q: baseQuery + dateFilter,
+      maxResults: 50,
     });
 
     const messages = listRes.data.messages || [];
@@ -170,14 +176,32 @@ const syncGmail = async (req, res) => {
       });
     }
 
-    // Save only valid confirmations to Firestore
+    // AI duplicate detection: collect duplicates and only save non-duplicates
+    const duplicatedItems = [];
+    const confirmationsToSave = [];
+    for (const confirmation of confirmationsData) {
+      const { isDuplicate, duplicateDocuments } = await findDuplicateConfirmationForUser(
+        userId,
+        confirmation
+      );
+      if (isDuplicate && duplicateDocuments.length > 0) {
+        duplicatedItems.push(...duplicateDocuments);
+      } else {
+        confirmationsToSave.push(confirmation);
+      }
+    }
+
+    // Save only non-duplicate confirmations to Firestore
     let savedConfirmations = [];
     try {
-      savedConfirmations = await saveConfirmations(userId, confirmationsData, tripId || null);
+      savedConfirmations =
+        confirmationsToSave.length > 0
+          ? await saveConfirmations(userId, confirmationsToSave, tripId || null)
+          : [];
       console.log(`✅ Saved ${savedConfirmations.length} confirmations to Firestore`);
 
       if (savedConfirmations.length > 0) {
-        const categories = confirmationsData.map((d) => d.category).filter(Boolean);
+        const categories = confirmationsToSave.map((d) => d.category).filter(Boolean);
         const mostCommonCategory = categories.length > 0 ? categories[0] : "travel";
         sendTravelConfirmationProcessedNotification(userId, savedConfirmations.length, mostCommonCategory)
           .catch((err) => console.error("Failed to send confirmation notification:", err));
@@ -205,6 +229,7 @@ const syncGmail = async (req, res) => {
           tripId: conf.tripId,
         })),
       },
+      duplicatedItems,
     });
   } catch (error) {
     console.error("Gmail Sync Error:", error);
