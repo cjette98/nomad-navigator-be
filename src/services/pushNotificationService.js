@@ -9,13 +9,20 @@ const { getFcmToken } = require("./fcmTokenService");
  * @param {string} type - Notification type: 'trip' | 'inspiration' | 'confirmation'
  * @returns {Promise<boolean>} - True if sent successfully, false if user has no FCM token
  */
-const sendPushNotification = async (userId, notification, data = {}, type = null) => {
+const sendPushNotification = async (
+  userId,
+  notification,
+  data = {},
+  type = null,
+) => {
   try {
     // Get user's FCM token
     const fcmTokenData = await getFcmToken(userId);
-    
+
     if (!fcmTokenData || !fcmTokenData.fcmToken) {
-      console.log(`⚠️ No FCM token found for user ${userId}, skipping push notification`);
+      console.log(
+        `⚠️ No FCM token found for user ${userId}, skipping push notification`,
+      );
       return false;
     }
 
@@ -33,23 +40,41 @@ const sendPushNotification = async (userId, notification, data = {}, type = null
         ...(type && { type: String(type) }),
       },
       token: fcmTokenData.fcmToken,
+      android: {
+        priority: "high",
+      },
+      apns: {
+        headers: {
+          "apns-priority": "10",
+        },
+      },
     };
 
     // Send the notification
     const response = await admin.messaging().send(message);
-    console.log(`✅ Push notification sent successfully to user ${userId}:`, response);
+    console.log(
+      `✅ Push notification sent successfully to user ${userId}:`,
+      response,
+    );
     return true;
   } catch (error) {
-    console.error(`❌ Error sending push notification to user ${userId}:`, error);
-    
+    console.error(
+      `❌ Error sending push notification to user ${userId}:`,
+      error,
+    );
+
     // Handle invalid token errors (e.g., token expired, unregistered)
-    if (error.code === "messaging/invalid-registration-token" || 
-        error.code === "messaging/registration-token-not-registered") {
-      console.log(`⚠️ FCM token for user ${userId} is invalid or unregistered, consider removing it`);
+    if (
+      error.code === "messaging/invalid-registration-token" ||
+      error.code === "messaging/registration-token-not-registered"
+    ) {
+      console.log(
+        `⚠️ FCM token for user ${userId} is invalid or unregistered, consider removing it`,
+      );
       // Optionally delete the invalid token here
       // await deleteFcmToken(userId);
     }
-    
+
     // Don't throw error - we don't want notification failures to break the main flow
     return false;
   }
@@ -62,9 +87,13 @@ const sendPushNotification = async (userId, notification, data = {}, type = null
  * @param {string} tripName - The trip name/destination
  * @returns {Promise<boolean>} - True if sent successfully
  */
-const sendTripItineraryCreatedNotification = async (userId, tripId, tripName) => {
+const sendTripItineraryCreatedNotification = async (
+  userId,
+  tripId,
+  tripName,
+) => {
   const destination = tripName || "your trip";
-  
+
   return await sendPushNotification(
     userId,
     {
@@ -75,7 +104,7 @@ const sendTripItineraryCreatedNotification = async (userId, tripId, tripName) =>
       tripId: tripId,
       tripName: destination,
     },
-    "trip"
+    "trip",
   );
 };
 
@@ -86,10 +115,19 @@ const sendTripItineraryCreatedNotification = async (userId, tripId, tripName) =>
  * @param {string} sourceType - Source type (e.g., "video", "link")
  * @returns {Promise<boolean>} - True if sent successfully
  */
-const sendInspirationProcessedNotification = async (userId, itemCount, sourceType = "inspiration") => {
-  const sourceLabel = sourceType === "video" ? "video" : sourceType === "link" ? "link" : "content";
+const sendInspirationProcessedNotification = async (
+  userId,
+  itemCount,
+  sourceType = "inspiration",
+) => {
+  const sourceLabel =
+    sourceType === "video"
+      ? "video"
+      : sourceType === "link"
+        ? "link"
+        : "content";
   const itemText = itemCount === 1 ? "item" : "items";
-  
+
   return await sendPushNotification(
     userId,
     {
@@ -100,7 +138,7 @@ const sendInspirationProcessedNotification = async (userId, itemCount, sourceTyp
       itemCount: String(itemCount),
       sourceType: sourceType,
     },
-    "inspiration"
+    "inspiration",
   );
 };
 
@@ -110,7 +148,8 @@ const sendInspirationProcessedNotification = async (userId, itemCount, sourceTyp
  * @returns {Promise<boolean>} - True if sent successfully
  */
 const sendNoConfirmationsFoundNotification = async (userId) => {
-  const body = "We didn't find any recent booking emails, You can add confirmations by uploading a PDF or photo of your booking, or try again after you receive new confirmation emails.";
+  const body =
+    "We didn't find any recent booking emails, You can add confirmations by uploading a PDF or photo of your booking, or try again after you receive new confirmation emails.";
   return await sendPushNotification(
     userId,
     {
@@ -118,7 +157,7 @@ const sendNoConfirmationsFoundNotification = async (userId) => {
       body,
     },
     { message: body },
-    "confirmation"
+    "confirmation",
   );
 };
 
@@ -129,13 +168,23 @@ const sendNoConfirmationsFoundNotification = async (userId) => {
  * @param {string} confirmationType - Type of confirmation (e.g., "flight", "hotel", "restaurant")
  * @returns {Promise<boolean>} - True if sent successfully
  */
-const sendTravelConfirmationProcessedNotification = async (userId, confirmationCount, confirmationType = "travel") => {
+const sendTravelConfirmationProcessedNotification = async (
+  userId,
+  confirmationCount,
+  confirmationType = "travel",
+) => {
   const itemText = confirmationCount === 1 ? "confirmation" : "confirmations";
-  const typeLabel = confirmationType === "flight" ? "flight" : 
-                   confirmationType === "hotel" ? "hotel" : 
-                   confirmationType === "restaurant" ? "restaurant" : 
-                   confirmationType === "activity" ? "activity" : "travel";
-  
+  const typeLabel =
+    confirmationType === "flight"
+      ? "flight"
+      : confirmationType === "hotel"
+        ? "hotel"
+        : confirmationType === "restaurant"
+          ? "restaurant"
+          : confirmationType === "activity"
+            ? "activity"
+            : "travel";
+
   return await sendPushNotification(
     userId,
     {
@@ -146,7 +195,7 @@ const sendTravelConfirmationProcessedNotification = async (userId, confirmationC
       confirmationCount: String(confirmationCount),
       confirmationType: confirmationType,
     },
-    "confirmation"
+    "confirmation",
   );
 };
 
@@ -157,4 +206,3 @@ module.exports = {
   sendTravelConfirmationProcessedNotification,
   sendNoConfirmationsFoundNotification,
 };
-
